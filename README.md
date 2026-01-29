@@ -23,14 +23,6 @@ Thông qua dự án này, mình đã rèn luyện các kỹ năng:
 
 ## 🏗️ Kiến Trúc Hệ Thống (Architecture)
 
-```mermaid
-graph LR
-    A[Attacker (Kali Linux)] -- Attack Traffic --> B[Victim (Windows 10)]
-    B -- Logs (Sysmon/Ossec) --> C[Wazuh Agent]
-    C -- Encrypted Traffic --> D[Wazuh Manager (Docker)]
-    D -- Alert --> E[Dashboard / VirusTotal]
-```
-
 *   **Wazuh Manager:** Server trung tâm, nhận logs, phân tích và cảnh báo.
 *   **Wazuh Agent:** Cài trên máy nạn nhân, thu thập logs từ hệ điều hành.
 *   **Sysmon:** Công cụ nâng cao của Microsoft giúp ghi lại chi tiết hành vi process, network connections.
