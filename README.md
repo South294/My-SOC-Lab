@@ -34,6 +34,7 @@ graph LR
 *   **Wazuh Manager:** Server trung tâm, nhận logs, phân tích và cảnh báo.
 *   **Wazuh Agent:** Cài trên máy nạn nhân, thu thập logs từ hệ điều hành.
 *   **Sysmon:** Công cụ nâng cao của Microsoft giúp ghi lại chi tiết hành vi process, network connections.
+*   **Wazuh Dashboard / VirusTotal:** Giao diện hiển thị cảnh báo và Module tích hợp để quét mã độc.
 
 ---
 
@@ -55,4 +56,4 @@ graph LR
 4.  **Kiểm Tra Kết Quả:** Đọc file [`detections/detection-logic.md`](detections/detection-logic.md) để hiểu tại sao Server lại cảnh báo.
 
 ---
-*Project thực hiện bởi [Nguyễn Thanh Nam] - Aspiring SOC Analyst*
+*Project thực hiện bởi [Nguyễn Thanh Nam] - SOC Analyst*
