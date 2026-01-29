@@ -35,6 +35,7 @@ Thông qua dự án này, mình đã rèn luyện các kỹ năng:
 | :--- | :--- |
 | `attacks/` | **[Quan trọng]** Các kịch bản tấn công giả lập (Red Team). |
 | `detections/` | **[Quan trọng]** Phân tích logic phát hiện cho từng kịch bản (Blue Team). |
+| `detections/tuning-workflow.md` | [Nâng cao] Quy trình xử lý báo động giả (False Positive) và Tuning Rule. |
 | `deployment/` | File `docker-compose.yml` để khởi chạy Wazuh Server. |
 | `endpoint-config/`| Cấu hình chi tiết cho Sysmon và Wazuh Agent. |
 | `manager-config/` | Cấu hình tích hợp (VirusTotal, Slack...) và Custom Rules. |
