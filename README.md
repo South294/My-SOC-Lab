@@ -37,7 +37,7 @@ Thông qua dự án này, mình đã rèn luyện các kỹ năng:
 | `detections/` | **[Quan trọng]** Phân tích logic phát hiện cho từng kịch bản (Blue Team). |
 | `deployment/` | File `docker-compose.yml` để khởi chạy Wazuh Server. |
 | `endpoint-config/`| Cấu hình chi tiết cho Sysmon và Wazuh Agent. |
-| `manager-config/` | Cấu hình tích hợp (VirusTotal, Slack...) cho Manager. |
+| `manager-config/` | Cấu hình tích hợp (VirusTotal, Slack...) và Custom Rules. |
 
 ---
 

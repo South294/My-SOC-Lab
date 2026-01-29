@@ -1,0 +1,22 @@
+<group name="local,syslog,sshd,">
+
+  <rule id="100002" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.originalFileName" type="pcre2">(?i)vssadmin\.exe</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)delete\s+shadows</field>
+    <description>Ransomware Activity: Shadow Copies deletion attempt detected</description>
+    <mitre>
+      <id>T1490</id>
+    </mitre>
+  </rule>
+
+  <rule id="100003" level="10">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)CurrentVersion\\\\Run</field>
+    <description>Persistence: Suspicious modification of Registry Run Key</description>
+    <mitre>
+      <id>T1547</id>
+    </mitre>
+  </rule>
+
+</group>
