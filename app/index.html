@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Triage Toolkit & SIEM Lab</title>
+    <meta name="description" content="Bộ công cụ Triage sự cố bảo mật tích hợp: Log Parser, IOC Extraction, PowerShell Decoder, SIEM Rule Tuning và Lab Event Generator dành cho SOC L1 Analyst.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-title-row">
+                    <span class="logo-icon">🛡️</span>
+                    <h1>SOC Triage Toolkit</h1>
+                    <span class="badge badge-header">Tier 1 Analyst Portfolio</span>
+                </div>
+                <p>Hệ thống tích hợp Triage Sự cố, Giải mã PowerShell, Tinh chỉnh SIEM Rules và Lab Event Generator dành cho L1 SOC Analyst</p>
+            </div>
+            <div class="header-metrics">
+                <div class="metric-card">
+                    <span class="m-val" style="color: var(--danger-color)">Critical</span>
+                    <span class="m-lbl">Ransomware</span>
+                </div>
+                <div class="metric-card">
+                    <span class="m-val" style="color: var(--warning-color)">High</span>
+                    <span class="m-lbl">Obfuscation</span>
+                </div>
+                <div class="metric-card">
+                    <span class="m-val" style="color: var(--accent-color)">Active</span>
+                    <span class="m-lbl">SIEM Lab</span>
+                </div>
+            </div>
+        </header>
+
+        <nav class="app-nav">
+            <button class="nav-btn active" data-tab="dashboard-triage">📋 Bảng Triage Sự Cố</button>
+            <button class="nav-btn" data-tab="ps-decoder">💻 Giải mã PowerShell</button>
+            <button class="nav-btn" data-tab="rule-tuning">🔧 Tinh chỉnh SIEM Rule</button>
+            <button class="nav-btn" data-tab="sop-playbooks">📖 Thư viện SOP</button>
+            <button class="nav-btn" data-tab="lab-gen">🚀 Lab & Event Gen</button>
+        </nav>
+
+        <main class="app-main">
+            
+            <section id="dashboard-triage" class="tab-content active">
+                <div class="layout-grid-main">
+                    
+                    <div class="left-triage-panel">
+                        <div class="glass-card">
+                            <div class="panel-header">
+                                <h2>Hàng đợi Cảnh báo (Alert Queue)</h2>
+                                <span class="badge count-badge">Real-time Lab Feed</span>
+                            </div>
+                            <div class="table-container">
+                                <table class="alert-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Mức độ</th>
+                                            <th>Cảnh báo (Wazuh Rule Description)</th>
+                                            <th>Thiết bị</th>
+                                            <th>Trạng thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alert-queue-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="glass-card triage-steps-card">
+                            <h3>Quy trình Triage SOC (Incident Triage Flow)</h3>
+                            <div class="triage-steps-flow">
+                                <div class="step-node active" id="step-node-1" data-step="1">
+                                    <span class="step-num">1</span>
+                                    <span class="step-txt">Nhận Log</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-node" id="step-node-2" data-step="2">
+                                    <span class="step-num">2</span>
+                                    <span class="step-txt">Trích IOCs</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-node" id="step-node-3" data-step="3">
+                                    <span class="step-num">3</span>
+                                    <span class="step-txt">Enrich Intel</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-node" id="step-node-4" data-step="4">
+                                    <span class="step-num">4</span>
+                                    <span class="step-txt">Phân loại & Tune</span>
+                                </div>
+                                <div class="step-line"></div>
+                                <div class="step-node" id="step-node-5" data-step="5">
+                                    <span class="step-num">5</span>
+                                    <span class="step-txt">Báo cáo</span>
+                                </div>
+                            </div>
+                            <div class="triage-controls">
+                                <button id="btn-prev-step" class="btn-secondary" disabled>← Bước trước</button>
+                                <button id="btn-next-step" class="btn-primary">Tiếp tục →</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="right-triage-panel">
+                        <div class="glass-card workspace-card">
+                            <div class="workspace-header">
+                                <div class="title-meta">
+                                    <h2 id="workspace-title">Không gian xử lý sự cố</h2>
+                                    <p id="ws-meta-rule" class="ws-meta-text">Đang tải...</p>
+                                    <p id="ws-meta-host" class="ws-meta-text"></p>
+                                </div>
+                                <div class="live-indicator">LIVE WORKSPACE</div>
+                            </div>
+
+                            <div id="triage-step-1" class="triage-step-content">
+                                <div class="step-instruction">
+                                    <h4>Bước 1: Xác nhận Log thô từ SIEM Manager (Wazuh JSON)</h4>
+                                    <p>Log JSON thô thu thập từ agent cài đặt trên Endpoint. Hãy kiểm tra định dạng và thực hiện phân tích.</p>
+                                </div>
+                                <textarea id="triage-raw-log" class="code-editor" readonly></textarea>
+                                <div class="action-btn-row">
+                                    <button id="btn-verify-log" class="btn-accent">Xác minh & Phân tích Log →</button>
+                                </div>
+                            </div>
+
+                            <div id="triage-step-2" class="triage-step-content hidden">
+                                <div class="step-instruction">
+                                    <h4>Bước 2: Kết quả bóc tách IOCs & Metadata tự động</h4>
+                                    <p>Các chỉ số kỹ thuật phục vụ khoanh vùng sự cố được trích xuất từ cấu trúc log JSON:</p>
+                                </div>
+                                <div class="ioc-results">
+                                    <table class="parsed-data-table">
+                                        <tbody>
+                                            <tr>
+                                                <th>Thiết bị (Agent Name)</th>
+                                                <td><span id="p-agent" class="code-val"></span></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Địa chỉ IP Agent</th>
+                                                <td><span id="p-ip" class="code-val"></span></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Mã sự kiện (Event ID)</th>
+                                                <td><span id="p-eventid" class="badge badge-event"></span></td>
+                                            </tr>
+                                            <tr>
+                                                <th>SIEM Rule & Mức độ</th>
+                                                <td><span id="p-rule" class="badge badge-danger"></span></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Mô tả sự kiện</th>
+                                                <td><span id="p-desc"></span></td>
+                                            </tr>
+                                            <tr>
+                                                <th>File thực thi (Image)</th>
+                                                <td><code id="p-image" class="code-line"></code></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Dòng lệnh (Command Line)</th>
+                                                <td><code id="p-cmdline" class="code-line"></code></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Tiến trình cha (Parent Image)</th>
+                                                <td><code id="p-parent" class="code-line"></code></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Đối tượng tác động (Target Object)</th>
+                                                <td><code id="p-target" class="code-line"></code></td>
+                                            </tr>
+                                            <tr>
+                                                <th>MITRE ATT&CK Mapping</th>
+                                                <td><span id="p-mitre" class="mitre-label"></span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div id="triage-step-3" class="triage-step-content hidden">
+                                <div class="step-instruction">
+                                    <h4>Bước 3: Điều tra mở rộng (Enrichment & Threat Intel)</h4>
+                                    <p>Tích hợp API và giải mã thông tin có hại để xác định phạm vi tác động.</p>
+                                </div>
+                                
+                                <div class="enrich-grid">
+                                    <div class="enrich-card">
+                                        <h5>Tra cứu IP nguồn danh tiếng</h5>
+                                        <div class="ip-lookup-status">
+                                            <p>IP Nguồn: <strong id="enrich-ip-val" class="code-val"></strong></p>
+                                            <span id="enrich-ip-type" class="ip-type"></span>
+                                        </div>
+                                        <p id="enrich-ip-desc" class="card-desc-text"></p>
+                                        <div id="enrich-intel-links" class="link-grid hidden">
+                                            <a id="e-link-vt" href="#" target="_blank" class="intel-btn vt">VirusTotal 🌐</a>
+                                            <a id="e-link-abuse" href="#" target="_blank" class="intel-btn abuse">AbuseIPDB 🛡️</a>
+                                            <a id="e-link-otx" href="#" target="_blank" class="intel-btn otx">AlienVault OTX 🔗</a>
+                                        </div>
+                                    </div>
+
+                                    <div id="enrich-ps-card" class="enrich-card hidden">
+                                        <h5>Phân tích Dòng lệnh PowerShell Mã hóa</h5>
+                                        <p class="warning-text">⚠️ Phát hiện tham số mã hóa Base64! Kết quả giải mã UTF-16LE:</p>
+                                        <pre id="enrich-ps-output" class="code-output-small"></pre>
+                                        <h6>Phân tích hành vi tiềm tàng:</h6>
+                                        <ul id="enrich-ps-flags" class="flag-list-small"></ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="triage-step-4" class="triage-step-content hidden">
+                                <div class="step-instruction">
+                                    <h4>Bước 4: Tham chiếu SOP & Phân loại TP/FP</h4>
+                                    <p>Dựa trên playbooks và bằng chứng kỹ thuật, xác minh sự cố và tiến hành ngăn chặn hoặc tinh chỉnh luật SIEM để loại bỏ cảnh báo giả.</p>
+                                </div>
+
+                                <div class="sop-split-layout">
+                                    <div id="sop-triage-view" class="sop-embed-panel">
+                                    </div>
+
+                                    <div class="classification-action-panel">
+                                        <h5>Kết luận Phân tích</h5>
+                                        <div class="radio-group">
+                                            <label class="radio-label tp-label">
+                                                <input type="radio" name="classify" id="classify-tp" value="TP">
+                                                <span class="custom-radio"></span> True Positive (Sự cố thực tế)
+                                            </label>
+                                            <label class="radio-label fp-label">
+                                                <input type="radio" name="classify" id="classify-fp" value="FP">
+                                                <span class="custom-radio"></span> False Positive (Cảnh báo giả)
+                                            </label>
+                                        </div>
+
+                                        <div id="response-tp-area" class="response-panel hidden">
+                                            <h6 style="color: var(--danger-color)">🚨 Kế hoạch phản ứng khẩn cấp (SOP Containment)</h6>
+                                            <ul class="checklist-tp">
+                                                <li><input type="checkbox" checked disabled> Cách ly mạng của thiết bị (Host Isolation).</li>
+                                                <li><input type="checkbox"> Kết thúc các tiến trình liên quan (Kill processes).</li>
+                                                <li><input type="checkbox"> Thu hồi Token, Session và yêu cầu đổi mật khẩu tài khoản bị can thiệp.</li>
+                                            </ul>
+                                        </div>
+
+                                        <div id="response-fp-area" class="response-panel hidden">
+                                            <h6 style="color: var(--success-color)">🔧 Rule Tuning Assistant (Giảm Alert nhiễu)</h6>
+                                            <p class="desc-text-small">Tạo luật ngoại trừ trên SIEM Manager để ngăn chặn cảnh báo giả tương tự:</p>
+                                            
+                                            <div class="tuning-inline-form">
+                                                <div class="form-row">
+                                                    <div class="form-col">
+                                                        <label>Target Rule ID</label>
+                                                        <input type="text" id="ws-tune-parent-id" readonly>
+                                                    </div>
+                                                    <div class="form-col">
+                                                        <label>Custom Rule ID</label>
+                                                        <input type="text" id="ws-tune-rule-id">
+                                                    </div>
+                                                </div>
+                                                <div class="form-group-small">
+                                                    <label>Trường dữ liệu loại trừ</label>
+                                                    <select id="ws-tune-field">
+                                                        <option value="win.eventdata.originalFileName">win.eventdata.originalFileName</option>
+                                                        <option value="win.eventdata.image">win.eventdata.image</option>
+                                                        <option value="win.eventdata.user">win.eventdata.user</option>
+                                                        <option value="win.eventdata.commandLine">win.eventdata.commandLine</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group-small">
+                                                    <label>Giá trị loại trừ (Regex)</label>
+                                                    <input type="text" id="ws-tune-value">
+                                                </div>
+                                                <div class="form-group-small">
+                                                    <label>Lý do loại trừ (Description)</label>
+                                                    <input type="text" id="ws-tune-desc" value="False Positive: Whitelist authorized administrative tool">
+                                                </div>
+                                                <button id="ws-btn-generate-rule" class="btn-accent btn-sm">Cập nhật Rule XML</button>
+                                            </div>
+
+                                            <pre id="ws-generated-rule" class="code-output-small xml-theme"></pre>
+                                            <button id="ws-btn-copy-rule" class="btn-secondary btn-sm">Sao chép Rule XML</button>
+                                            
+                                            <div class="tuning-impact-static">
+                                                <p>🔥 <strong>Hiệu quả Tuning:</strong> Giảm thiểu <strong>15-20%</strong> cảnh báo nhiễu hàng ngày trên máy chủ giám sát đối với tiến trình này.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="analyst-notes-section">
+                                    <label for="ws-notes"><strong>Nhật ký điều tra của Analyst (Investigation Notes)</strong></label>
+                                    <textarea id="ws-notes" placeholder="Ghi chú chi tiết các bước xác minh, kết quả rà soát theo SOP..."></textarea>
+                                </div>
+                            </div>
+
+                            <div id="triage-step-5" class="triage-step-content hidden">
+                                <div class="step-instruction">
+                                    <h4>Bước 5: Hoàn tất báo cáo & Đóng Ticket điều tra</h4>
+                                    <p>Báo cáo sự cố được kết xuất dưới dạng cấu trúc Markdown chuẩn hóa. Analyst có thể kiểm tra trước khi tải về lưu trữ hoặc đưa lên hệ thống ITSM.</p>
+                                </div>
+                                <pre id="ws-report-preview" class="code-editor markdown-preview-theme" style="min-height: 350px"></pre>
+                                <div class="action-btn-row">
+                                    <button id="ws-btn-download-report" class="btn-primary">Xuất file Báo cáo (.md) & Đóng sự cố</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="ps-decoder" class="tab-content">
+                <div class="layout-grid">
+                    <div class="input-panel">
+                        <h2>Bộ giải mã PowerShell Base64 (Standalone UTF-16LE)</h2>
+                        <p class="panel-desc">Giải mã các dòng lệnh PowerShell obfuscated, thường được các hacker sử dụng để che giấu hành vi tải payload.</p>
+                        <textarea id="ps-input" placeholder="Nhập chuỗi lệnh PowerShell hoặc chuỗi Base64 mã hóa (ví dụ: powershell.exe -EncodedCommand ... hoặc đoạn mã độc hại)..."></textarea>
+                        <button id="decode-btn" class="btn-primary">Giải mã & Phân tích hành vi</button>
+                    </div>
+
+                    <div class="result-panel">
+                        <h2>Kết quả Giải mã & Phân tích</h2>
+                        <div id="decoder-result-placeholder" class="placeholder-text">
+                            Chưa có dữ liệu giải mã. Nhập câu lệnh ở bảng bên trái để phân tích.
+                        </div>
+                        <div id="decoder-result-data" class="hidden">
+                            <h3>Mã lệnh rõ sau giải mã:</h3>
+                            <pre id="decoded-output" class="code-block"></pre>
+                            <h3>Đánh giá hành vi đáng ngờ (Heuristic Flags):</h3>
+                            <ul id="suspicious-flags" class="flag-list"></ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="rule-tuning" class="tab-content">
+                <div class="layout-grid">
+                    <div class="input-panel">
+                        <h2>SIEM Rule Tuning Assistant (Tối ưu hóa Luật Wazuh)</h2>
+                        <p class="panel-desc">Sinh quy tắc ghi đè loại trừ (suppression rules) giúp giảm thiểu các cảnh báo sai lệch (False Positives) trong hệ thống SIEM.</p>
+                        
+                        <div class="form-group">
+                            <label for="tune-parent-id">Target Rule ID gốc (if_sid)</label>
+                            <input type="text" id="tune-parent-id" placeholder="Ví dụ: 100003">
+                        </div>
+                        <div class="form-group">
+                            <label for="tune-rule-id">Mã luật Custom mới (New Rule ID)</label>
+                            <input type="text" id="tune-rule-id" placeholder="Ví dụ: 100503 (Khuyến nghị 100000+)">
+                        </div>
+                        <div class="form-group">
+                            <label for="tune-field">Trường dữ liệu thực hiện loại trừ</label>
+                            <select id="tune-field">
+                                <option value="win.eventdata.originalFileName">win.eventdata.originalFileName (Tên file gốc)</option>
+                                <option value="win.eventdata.image">win.eventdata.image (Đường dẫn tiến trình)</option>
+                                <option value="win.eventdata.user">win.eventdata.user (Tài khoản người dùng)</option>
+                                <option value="win.eventdata.commandLine">win.eventdata.commandLine (Dòng lệnh thực thi)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tune-value">Giá trị cần loại trừ (Hỗ trợ Regex / PCRE2)</label>
+                            <input type="text" id="tune-value" placeholder="Ví dụ: psexec\\.exe hoặc updater\\.exe">
+                        </div>
+                        <div class="form-group">
+                            <label for="tune-desc">Mô tả lý do loại trừ (Description)</label>
+                            <input type="text" id="tune-desc" placeholder="Ví dụ: False Positive: Authorized backup client execution">
+                        </div>
+                        <button id="generate-rule-btn" class="btn-primary">Sinh Rule XML loại trừ</button>
+                    </div>
+
+                    <div class="result-panel">
+                        <h2>Mã cấu hình Wazuh XML tương ứng</h2>
+                        <div id="rule-result-placeholder" class="placeholder-text">
+                            Điền các thông tin cấu hình bên trái để tự động tạo Rule XML.
+                        </div>
+                        <div id="rule-result-data" class="hidden">
+                            <pre id="generated-rule-output" class="code-block xml-theme"></pre>
+                            <button id="copy-rule-btn" class="btn-primary">Sao chép Rule XML</button>
+                            
+                            <div id="tuning-impact-metrics" class="tuning-metrics-card hidden">
+                                <h3>📊 Dự báo tác động tối ưu hóa SIEM (Tuning Metrics)</h3>
+                                <div class="metric-flex">
+                                    <div class="metric-box">
+                                        <span class="m-title">Alert trước Tuning</span>
+                                        <span class="m-value danger-text">142 alerts/ngày</span>
+                                    </div>
+                                    <div class="metric-arrow">➡️</div>
+                                    <div class="metric-box">
+                                        <span class="m-title">Alert sau Tuning</span>
+                                        <span class="m-value success-text">3 alerts/ngày</span>
+                                    </div>
+                                </div>
+                                <p class="metric-desc">Tuning giúp loại bỏ <strong>97.8%</strong> cảnh báo giả, tối ưu hóa băng thông log và giảm mệt mỏi cho kỹ sư SOC (Alert Fatigue).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sop-playbooks" class="tab-content">
+                <div class="sop-layout">
+                    <div class="sop-sidebar">
+                        <div class="sop-sidebar-header">
+                            <h3>Danh mục SOP thực chiến</h3>
+                            <p>Tài liệu hướng dẫn phản ứng sự cố dành cho L1 SOC</p>
+                        </div>
+                        <button class="sop-nav-btn active" data-sop="sop-smb">🔒 SOP-001: Brute Force SMB</button>
+                        <button class="sop-nav-btn" data-sop="sop-powershell">💻 SOP-002: Encoded PowerShell</button>
+                        <button class="sop-nav-btn" data-sop="sop-registry">🔧 SOP-003: Registry Run Key</button>
+                        <button class="sop-nav-btn" data-sop="sop-malware">🌐 SOP-004: Tải file độc hại</button>
+                        <button class="sop-nav-btn" data-sop="sop-ransomware">🚨 SOP-005: Xóa Shadow Copy</button>
+                    </div>
+                    <div class="sop-detail-panel">
+                        <div id="sop-content-area" class="sop-card">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="lab-gen" class="tab-content">
+                <div class="layout-grid-main">
+                    
+                    <div class="lab-guide-panel">
+                        <div class="glass-card">
+                            <h2>Hướng dẫn triển khai Lab Giám sát (SIEM/Sysmon)</h2>
+                            <p class="panel-desc">Cấu trúc hạ tầng giám sát an toàn được rút gọn về 3 thành phần cốt lõi của L1 Analyst:</p>
+                            
+                            <div class="accordion-section">
+                                <div class="acc-card">
+                                    <h3>📍 Phần 1: Nguồn Log & Phát hiện (Log Sources & Detection)</h3>
+                                    <div class="acc-content">
+                                        <p>Hệ thống giám sát kết hợp <strong>Wazuh SIEM</strong> làm Manager tập trung và <strong>Sysmon (System Monitor)</strong> trên Windows client để thu thập hành vi sâu rộng.</p>
+                                        <ul>
+                                            <li><strong>Wazuh Agent:</strong> Cấu hình đẩy logs Windows Security, Application, System, và Sysmon Operational lên server.</li>
+                                            <li><strong>Sysmon:</strong> Ghi vết các sự kiện: Process Creation (ID 1), File Creation Time change (ID 2), Network Connect (ID 3), Registry modification (ID 12/13), File Create (ID 11).</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div class="acc-card">
+                                    <h3>📍 Phần 2: Đánh giá & Phản ứng (Triage & Response Flow)</h3>
+                                    <div class="acc-content">
+                                        <p>Quy trình vận hành chuẩn của L1 Analyst khi tiếp nhận alert:</p>
+                                        <ol>
+                                            <li><strong>Alert:</strong> Phát hiện hành vi bất thường kích hoạt luật SIEM.</li>
+                                            <li><strong>Verify:</strong> Kiểm tra log JSON, phân biệt lỗi quản trị hay tấn công.</li>
+                                            <li><strong>Scope & Enrich:</strong> Tra cứu IP ngoại biên, giải mã command line.</li>
+                                            <li><strong>Classify:</strong> Phân loại True Positive (TP) / False Positive (FP).</li>
+                                            <li><strong>Escalate/Ticket:</strong> Tạo ticket, cô lập máy (Active Response) và tinh chỉnh rule (Tuning) nếu là FP.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <div class="acc-card">
+                                    <h3>📍 Phần 3: Triển khai Lab & Báo cáo (Lab Deployment & Reporting)</h3>
+                                    <div class="acc-content">
+                                        <p>Các bước dựng Lab nhanh trên môi trường VMware/VirtualBox:</p>
+                                        <ol>
+                                            <li>Dựng Wazuh Server chạy bằng Docker Compose trong thư mục <code>deployment/</code>.</li>
+                                            <li>Cài đặt Wazuh Agent và Sysmon với file cấu hình chuẩn trong <code>configurations/agent/</code> lên máy Windows.</li>
+                                            <li>Copy các luật phát hiện custom vào <code>local_rules.xml</code> trên Wazuh Manager.</li>
+                                            <li>Sử dụng Bảng Triage hoặc Event Generator để kiểm tra tính đúng đắn của luật.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lab-generator-panel">
+                        <div class="glass-card">
+                            <div class="panel-header">
+                                <h2>Lab Event & Log Generator (Giả lập Sự cố)</h2>
+                                <span class="badge badge-accent">Interactive Simulation</span>
+                            </div>
+                            <p class="panel-desc">Chọn kịch bản tấn công để sinh dòng lệnh kiểm thử an toàn và Log JSON tương ứng ghi nhận bởi SIEM:</p>
+                            
+                            <div class="gen-selection-row">
+                                <button class="gen-nav-btn active" data-gen="gen-smb">Brute Force SMB</button>
+                                <button class="gen-nav-btn" data-gen="gen-powershell">Encoded PowerShell</button>
+                                <button class="gen-nav-btn" data-gen="gen-registry">Registry Run Key</button>
+                                <button class="gen-nav-btn" data-gen="gen-malware">Suspicious Download</button>
+                                <button class="gen-nav-btn" data-gen="gen-ransomware">Shadow Copies Deletion</button>
+                            </div>
+
+                            <div class="gen-workspace-card">
+                                <h3 id="gen-event-title">Use Case 1: SMB Brute Force Attack</h3>
+                                
+                                <h4>1. Lệnh thực hiện mô phỏng (Run on Attacker machine):</h4>
+                                <div class="code-box-wrapper">
+                                    <pre id="gen-cmd-output" class="code-block-small"></pre>
+                                    <button id="btn-copy-gen-cmd" class="btn-secondary btn-xs">Sao chép lệnh</button>
+                                </div>
+
+                                <h4>2. Log Wazuh JSON tương ứng ghi nhận tại SIEM Manager:</h4>
+                                <div class="code-box-wrapper">
+                                    <pre id="gen-log-output" class="code-block-small json-theme"></pre>
+                                    <button id="btn-copy-gen-log" class="btn-secondary btn-xs">Sao chép JSON</button>
+                                </div>
+
+                                <div class="gen-integration-row">
+                                    <button id="btn-load-to-triage" class="btn-accent">📥 Nạp sự cố giả lập này vào Bảng Triage để xử lý</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <span class="footer-logo">🛡️ SOC Triage Toolkit</span>
+                    <span class="footer-divider">|</span>
+                    <span>Portfolio Project dành cho L1 SOC Analyst</span>
+                </div>
+                <div class="footer-right">
+                    <span>Built with Wazuh + Sysmon + MITRE ATT&CK</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
