@@ -1,110 +1,141 @@
-# SOC Triage Toolkit và SIEM Configuration Lab
+# SOC Triage Toolkit (SIEM Lab & Triage Dashboard)
 
-Hệ thống giả lập điều tra sự cố (Triage), phân tích log, giải mã mã độc và quản lý luật SIEM tối ưu hóa cho vị trí SOC Analyst Tier 1.
+SOC Triage Toolkit là lab mô phỏng quy trình xử lý cảnh báo cho SOC Analyst Tier 1, tập trung vào phân tích log, triage alert, decoding, rule tuning và tạo report.
 
----
-
-## 1. Nguồn Log & Luật Phát Hiện (Log Sources & Detection)
-
-Hạ tầng giám sát an ninh thông tin sử dụng Wazuh SIEM kết hợp với Sysmon (System Monitor) trên các máy trạm Windows để thu thập dữ liệu hành vi sâu.
-
-### Các nguồn sự kiện chính (Event IDs)
-- **Event ID 4625 (Security Log):** Đăng nhập thất bại (xác định Brute Force).
-- **Event ID 1 (Sysmon):** Khởi tạo tiến trình (Process Creation - ghi nhận dòng lệnh thực thi).
-- **Event ID 11 (Sysmon):** Tạo tệp tin mới (File Creation - theo dõi tải file lạ).
-- **Event ID 12/13 (Sysmon):** Tạo hoặc sửa đổi Registry (theo dõi cơ chế Persistence).
-- **Event ID 2 (Sysmon):** Thay đổi thời gian tạo tệp tin (Timestomping - Defense Evasion).
-
-### Danh mục Luật phát hiện Custom (local_rules.xml)
-Tất cả các luật phát hiện được ánh xạ trực tiếp sang kỹ thuật tấn công trong ma trận MITRE ATT&CK:
-
-| Rule ID | Tên luật phát hiện | Mức độ | Kỹ thuật MITRE ATT&CK | Mô tả |
-| :--- | :--- | :--- | :--- | :--- |
-| **100001** | Authentication Failure: Multiple SMB logon failures | Level 10 | T1110 (Brute Force) | Phát hiện dò quét mật khẩu qua giao thức SMB |
-| **100002** | Ransomware Activity: Shadow Copies deletion attempt | Level 12 | T1490 (Inhibit System Recovery) | Phát hiện hành vi xóa bản sao lưu phục hồi hệ thống |
-| **100003** | Persistence: Suspicious Registry Run Key Modification | Level 10 | T1547.001 (Registry Run Keys) | Phát hiện thiết lập tự khởi động của mã độc |
-| **100004** | Defense Evasion: PowerShell Encoded Command | Level 10 | T1027 (Obfuscated Information) | Phát hiện lệnh PowerShell chạy mã hóa Base64 |
-| **100005** | Suspicious File Download: Temp/Public directory | Level 11 | T1105 (Ingress Tool Transfer) | Phát hiện tải tệp thực thi vào thư mục tạm |
+Dự án giúp trả lời nhanh 4 câu hỏi cốt lõi của một SOC Analyst L1 khi tiếp nhận cảnh báo:
+1. Cảnh báo này là gì?
+2. Có thật hay giả (True/False Positive)?
+3. Nên xử lý thế nào?
+4. Ghi lại thành ticket/report ra sao?
 
 ---
 
-## 2. Quy Trình Triage & Phản Ứng (Triage & Response)
+## Khối A — Overview
 
-### Quy trình Triage Sự Cố chuẩn SOC L1
+- **Mục tiêu:** Mô phỏng quy trình vận hành thực tế của một trung tâm giám sát an ninh mạng (SOC) ở mức độ L1, giảm thiểu tình trạng mệt mỏi vì cảnh báo giả (Alert Fatigue) thông qua kỹ thuật tinh chỉnh luật (Rule Tuning).
+- **Giải quyết vấn đề:** Giúp Analyst L1 thực hành phân loại cảnh báo, trích xuất chỉ số độc hại (IOC), giải mã lệnh che giấu và viết báo cáo sự cố chuẩn hóa Markdown.
+- **Tech Stack:**
+  - SIEM: Wazuh Manager 4.7.2 (Docker)
+  - Endpoint Agent: Wazuh Agent + Windows Sysmon
+  - Web UI: HTML, CSS, JavaScript (Bảng Triage & Phân tích độc lập)
+  - Detection Framework: MITRE ATT&CK
+
+---
+
+## Khối B — Data Pipeline
+
+Luồng xử lý dữ liệu từ endpoint đến báo cáo cuối cùng:
 ```
-Alert (Nhận cảnh báo)
-  └── Verify (Xác minh định dạng log thô)
-        └── Scope (Bóc tách các chỉ số IOCs)
-              └── Enrich (Tra cứu uy tín IP & Giải mã payload)
-                    └── Classify TP/FP (Phân loại Sự cố thực / Cảnh báo giả)
-                          └── Escalate / Ticket (Cách ly/Tuning & Xuất báo cáo điều tra)
+[Log Source] (Windows Event / Sysmon)
+     │
+     ▼
+[Parse & Detect] (Wazuh Rules Matching & MITRE Mapping)
+     │
+     ▼
+[Enrichment] (IP Reputation Lookup / PowerShell UTF-16LE Decode)
+     │
+     ▼
+[Classification] (SOP Reference -> True Positive / False Positive Decision)
+     │
+     ▼
+[Response Action] ───► [TP] Containment & Escalation
+     │                └──► [FP] SIEM Rule Tuning (Exclude Safe Regex)
+     ▼
+[Incident Report] (Export Markdown Report & Close Ticket)
 ```
-
-### Phân loại mức độ nghiêm trọng (Severity Mapping)
-- **Critical (Level 12+):** Hành vi phá hoại trực tiếp như Ransomware xóa sao lưu, mã hóa dữ liệu. Yêu cầu phản ứng trong 15 phút.
-- **High (Level 10-11):** Thực thi mã hóa PowerShell, sửa đổi cơ chế khởi động Registry, hoặc tải file nhị phân đáng ngờ. Yêu cầu phản ứng trong 30 phút.
-- **Medium (Level 5-9):** Đăng nhập sai nhiều lần từ IP nội bộ, thay đổi cấu hình hệ thống thông thường. Yêu cầu phản ứng trong 2 giờ.
-- **Low (Level 3-4):** Các hành vi trinh sát cơ bản hoặc cảnh báo hệ thống thông thường.
-
-### Tóm tắt Quy trình Phản ứng (SOP Playbooks)
-1. **SOP-001 (SMB Brute Force):** Chặn IP nguồn trên tường lửa biên -> Truy vết Event ID 4624 thành công -> Khóa tài khoản nếu có đăng nhập thành công.
-2. **SOP-002 (PowerShell Encoded):** Giải mã Base64 -> Rà soát lệnh rõ để tìm IP C2 hoặc tệp tải về -> Kết thúc tiến trình PowerShell và tiến trình cha.
-3. **SOP-003 (Registry Run Key):** Xác định đường dẫn tệp thực thi độc hại -> Xóa khóa Registry -> Xóa tệp thực thi đích khỏi thư mục tạm.
-4. **SOP-004 (Suspicious Download):** Kiểm tra SHA256 trên VirusTotal -> Xóa tệp -> Cô lập thiết bị nếu tệp đã chạy và có kết nối mạng ra ngoài.
-5. **SOP-005 (Shadow Copy Deletion):** Cách ly mạng ngay lập tức (Host Isolation) -> Kết thúc tiến trình cha -> Kiểm tra tính toàn vẹn của dữ liệu sao lưu ngoại tuyến.
-
-### Tinh chỉnh SIEM Rule (Rule Tuning Assistant)
-- **Mục tiêu:** Loại bỏ cảnh báo giả (False Positives) sinh ra do các tiến trình nghiệp vụ hợp lệ của hệ thống hoặc quản trị viên IT.
-- **Cơ chế:** Sử dụng thẻ `<if_sid>` để kế thừa và `<field>` kèm Regex để loại trừ các giá trị an toàn.
-- **Hiệu quả thực tế:** Giảm thiểu số lượng cảnh báo trùng lặp từ 140+ mỗi ngày xuống dưới 5 sự kiện thực tế, giảm thiểu tình trạng quá tải cảnh báo (Alert Fatigue).
 
 ---
 
-## 3. Triển Khai Lab & Báo Cáo (Lab Deployment & Reporting)
+## Khối C — Detection Use Cases
 
-### Bước 1: Khởi động Wazuh SIEM Server
-Di chuyển vào thư mục `deployment/` và khởi chạy container:
+Hệ thống triển khai 5 use case phát hiện trọng tâm:
+
+### 1. SMB Brute Force
+- **Phát hiện:** Nhiều lần đăng nhập thất bại liên tiếp qua dịch vụ chia sẻ file SMB.
+- **Log Source:** Windows Security Event ID 4625.
+- **Rule Phát hiện:** Wazuh Rule ID `100001` (Level 10).
+- **IOC cần nhìn:** Địa chỉ IP nguồn (`ipAddress`), tài khoản đích (`targetUserName`), tần suất đăng nhập lỗi.
+- **Triage:** Xác minh IP nguồn có thuộc dải IP quản trị hoặc máy của người dùng hợp lệ bị gõ sai mật khẩu (FP) hay không.
+- **Hành động:** Nếu là TP, block IP nguồn trên Firewall, kiểm tra Event 4624 (đăng nhập thành công) của tài khoản đó.
+
+### 2. PowerShell Encoded Command
+- **Phát hiện:** Tiến trình PowerShell chạy với tham số che giấu command line bằng mã hóa Base64.
+- **Log Source:** Sysmon Event ID 1 (Process Creation).
+- **Rule Phát hiện:** Wazuh Rule ID `100004` (Level 10).
+- **IOC cần nhìn:** Chuỗi `-EncodedCommand` hoặc `-enc` trong CommandLine.
+- **Triage:** Giải mã chuỗi Base64 sang văn bản rõ UTF-16LE, quét tìm từ khóa độc hại (IEX, DownloadString, URLs lạ).
+- **Hành động:** Nếu chứa payload độc hại (TP), cô lập máy (Isolate Host) và kết thúc tiến trình PowerShell.
+
+### 3. Registry Run Key Persistence
+- **Phát hiện:** Ghi nhận hành vi tạo hoặc sửa đổi Registry Run Key để duy trì quyền truy cập khi máy khởi động lại.
+- **Log Source:** Sysmon Event ID 12/13 (Registry Event).
+- **Rule Phát hiện:** Wazuh Rule ID `100003` (Level 10).
+- **IOC cần nhìn:** Đường dẫn khóa (`targetObject`), tệp thực thi đích (`details`).
+- **Triage:** Kiểm tra tệp thực thi đích có nằm trong thư mục tạm (`Temp`, `Public`, `Downloads`) hay không.
+- **Hành động:** Nếu là TP, xóa khóa Registry và tệp thực thi tương ứng, kích hoạt Full Scan Antivirus.
+
+### 4. Suspicious File Download
+- **Phát hiện:** Tệp thực thi (.exe, .dll, .ps1) được tạo ra trong các thư mục tạm.
+- **Log Source:** Sysmon Event ID 11 (File Create).
+- **Rule Phát hiện:** Wazuh Rule ID `100005` (Level 11).
+- **IOC cần nhìn:** Tên tệp (`targetFilename`), tiến trình tải (`image` như curl.exe, powershell.exe).
+- **Triage:** Tính toán Hash SHA256 của tệp và tra cứu danh tiếng trên VirusTotal.
+- **Hành động:** Xóa tệp độc hại ngay lập tức; kiểm tra xem tệp đã từng được thực thi (Sysmon ID 1) chưa.
+
+### 5. Shadow Copy Deletion
+- **Phát hiện:** Lệnh xóa bản sao lưu hệ thống (Shadow Copies), hành vi đặc trưng của Ransomware nhằm ngăn cản phục hồi dữ liệu.
+- **Log Source:** Sysmon Event ID 1 (Process Creation).
+- **Rule Phát hiện:** Wazuh Rule ID `100002` (Level 12).
+- **IOC cần nhìn:** CommandLine chứa `vssadmin.exe delete shadows` hoặc `wmic shadowcopy delete`.
+- **Triage:** Xác định tiến trình cha và tài khoản thực thi. Đây luôn là cảnh báo mức độ Critical cần xử lý khẩn cấp.
+- **Hành động:** Cô lập mạng thiết bị ngay lập tức, kết thúc tiến trình cha đáng ngờ.
+
+---
+
+## Khối D — Response Playbooks
+
+Quy trình phản ứng sự cố chuẩn hóa (SOP):
+
+1. **Verify:** Phân tích log thô JSON, xác định Event ID và các trường chính.
+2. **Scope:** Trích xuất IOCs (IP, Tiến trình, Tài khoản), tra cứu danh tiếng hoặc giải mã payload.
+3. **Contain:** Cô lập thiết bị, ngắt tiến trình hoặc vô hiệu hóa tài khoản.
+4. **Eradicate:** Loại bỏ tệp độc hại, khôi phục Registry bị thay đổi.
+5. **Report:** Ghi nhận xử lý và xuất báo cáo sự cố (Markdown).
+
+---
+
+## Khối E — Tuning & Report
+
+### 1. Giảm False Positive (Rule Tuning)
+Khi phát hiện cảnh báo giả, Analyst viết luật ngoại trừ trên Wazuh Manager:
+- Dùng `<if_sid>` kế thừa rule gốc.
+- Dùng `<field>` kết hợp biểu thức chính quy (Regex) để loại bỏ đối tượng an toàn.
+- **Hiệu quả:** Giảm nhiễu hiệu quả, chỉ tập trung vào cảnh báo thực sự quan trọng.
+
+### 2. Gắn MITRE ATT&CK & Incident Report
+Báo cáo sự cố xuất ra chứa:
+- Phân loại sự cố (TP / FP).
+- Liên kết kỹ thuật MITRE ATT&CK (T1110, T1027, v.v.).
+- Kế hoạch phản ứng chi tiết.
+
+---
+
+## Khối F — Lab Deployment
+
+### 1. Triển khai Wazuh Manager
 ```bash
+cd deployment/
+cp .env.example .env
 docker-compose up -d
 ```
 
-### Bước 2: Cấu hình trên Endpoint Windows
-1. Cài đặt **Wazuh Agent** và áp dụng cấu hình đẩy logs trong `configurations/agent/ossec.conf`.
-2. Cài đặt **Sysmon** với file cấu hình chuẩn `configurations/agent/sysmonconfig.xml`:
-```cmd
-sysmon.exe -i sysmonconfig.xml
-```
+### 2. Cấu hình Windows Agent & Sysmon
+- Cài đặt Wazuh Agent trên máy Windows đích, kết nối về Wazuh Manager IP. Áp dụng cấu hình đẩy log tại [ossec.conf](configurations/agent/ossec.conf).
+- Cài đặt Sysmon trên máy Windows:
+  ```cmd
+  sysmon.exe -i configurations/agent/sysmonconfig.xml
+  ```
 
-### Bước 3: Tích hợp Luật trên SIEM Manager
-Copy nội dung luật trong `configurations/manager/local_rules.xml` vào mục cấu hình luật trên Wazuh Dashboard (`ruleset/decoders/rules`). Khởi động lại Wazuh Manager để áp dụng.
-
-### Bước 4: Kiểm thử sự kiện và Xuất báo cáo
-Sử dụng công cụ **Lab Event Generator** để lấy dòng lệnh kiểm thử an toàn, thực thi trên endpoint và nạp log thô thu được vào **Bảng Triage** để tập dượt phân tích, sau đó kết xuất báo cáo Markdown làm bằng chứng điều tra.
-
----
-
-## 4. Phụ lục: Cheat Sheet dành cho SOC Analyst L1
-
-### Mô hình OSI & Trách nhiệm Giám sát
-- **Layer 7 (Application):** HTTP/HTTPS, DNS, SMB, SSH. Giám sát tấn công web, đánh cắp dữ liệu, trinh sát.
-- **Layer 4 (Transport):** TCP, UDP. Kiểm soát luồng kết nối, phân tích Port Scan.
-- **Layer 3 (Network):** IP, ICMP. Phân tích định tuyến, phát hiện IP độc hại bên ngoài.
-
-### Danh mục Port phổ biến và Rủi ro
-- **Port 22 (SSH):** Nguy cơ Brute Force, chiếm quyền điều khiển dòng lệnh.
-- **Port 445 (SMB):** Lan truyền mã độc trong mạng nội bộ (Lateral Movement), khai thác lỗ hổng EternalBlue.
-- **Port 3389 (RDP):** Chiếm quyền điều khiển giao diện người dùng, nguy cơ rò rỉ thông tin xác thực.
-- **Port 80/443 (HTTP/HTTPS):** Kênh truyền tải mã độc chính từ Internet hoặc kết nối C2 của Hacker.
-
-### Mô hình AAA và CIA Triad
-- **CIA:** Confidentiality (Bảo mật), Integrity (Toàn vẹn), Availability (Sẵn sàng).
-- **AAA:** Authentication (Xác thực danh tính), Authorization (Cấp quyền hạn), Accounting (Ghi nhật ký hoạt động - cơ sở cốt lõi của Log Auditing).
-
-### Vòng đời tấn công (Attack Lifecycle - Cyber Kill Chain)
-1. **Reconnaissance (Trinh sát):** Thu thập thông tin mục tiêu.
-2. **Weaponization (Vũ khí hóa):** Đóng gói mã độc.
-3. **Delivery (Phát tán):** Tải file độc hại về máy qua Web/Mail.
-4. **Exploitation (Khai thác):** Kích hoạt thực thi mã độc.
-5. **Installation (Cài đặt):** Thiết lập cơ chế chạy ngầm (Registry Run Key).
-6. **Command & Control (C2):** Kết nối điều khiển từ xa qua mạng.
-7. **Actions on Objectives (Phá hoại):** Xóa sao lưu, mã hóa dữ liệu đòi tiền chuộc (Ransomware).
+### 3. Cập nhật Rules & Kiểm thử
+- Copy nội dung luật custom tại [local_rules.xml](configurations/manager/local_rules.xml) vào thư mục cấu hình Wazuh Manager, restart dịch vụ Wazuh Manager.
+- Sử dụng **Synthetic Event Generator** trên ứng dụng Web để tạo dữ liệu log mẫu nhằm kiểm tra và xác minh tính hoạt động của các luật phát hiện.
