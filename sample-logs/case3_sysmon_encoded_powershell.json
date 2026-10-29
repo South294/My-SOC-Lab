@@ -2,7 +2,7 @@
   "timestamp": "2026-10-29T14:30:15.000+0700",
   "rule": {
     "level": 10,
-    "description": "Defense Evasion: PowerShell execution with Encoded/Obfuscated Command Line",
+    "description": "Defense Evasion: Suspicious PowerShell execution detected",
     "id": "100301",
     "mitre": {
       "id": ["T1027", "T1059.001"],
@@ -38,4 +38,3 @@
     }
   }
 }
-

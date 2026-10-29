@@ -28,10 +28,7 @@ Tường lửa ModSecurity đã phát hiện và chặn thành công (HTTP 403 F
 
 #### A. So sánh 2 dòng Log trên Nginx:
 ```log
-# Dòng 1: Request bị ModSecurity chặn (HTTP 403 Forbidden)
 198.51.100.50 - - [29/Oct/2026:14:15:20 +0700] "GET /vulnerabilities/sqli/?id=1%27+UNION+SELECT+null%2Cuser%2Cpassword+FROM+users--+-&Submit=Submit HTTP/1.1" 403 548 "http://192.168.1.100/vulnerabilities/sqli/" "sqlmap/1.7#stable"
-
-# Dòng 2: Request trước đó chưa bật luật WAF / đã lọt qua (HTTP 200 OK)
 198.51.100.50 - - [29/Oct/2026:14:10:02 +0700] "GET /vulnerabilities/sqli/?id=1%27+OR+%271%27%3D%271&Submit=Submit HTTP/1.1" 200 4821 "http://192.168.1.100/vulnerabilities/sqli/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 ```
 

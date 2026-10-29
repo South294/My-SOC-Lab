@@ -1,20 +1,7 @@
-<!-- 
-  Custom Wazuh Detection Rules for SOC Tier 1 Operations
-  Path: /var/ossec/etc/rules/local_rules.xml
-  
-  Mục tiêu: Xây dựng các luật phát hiện trọng tâm theo 4 kịch bản giám sát an ninh mạng (Use Cases) cho hệ thống SIEM.
--->
-
 <group name="local,custom_soc_lab,">
 
-  <!-- ===================================================================== -->
-  <!-- CA TRỰC 1: WEB APPLICATION ATTACK & WAF DETECTION                    -->
-  <!-- Nguồn log: Nginx Access Log / ModSecurity Audit Log (/var/log/...)     -->
-  <!-- ===================================================================== -->
-
-  <!-- Phát hiện chuỗi SQL Injection phổ biến trong URI query string -->
   <rule id="100100" level="10">
-    <if_sid>31100</if_sid>
+    <if_sid>31100, 31101, 31103, 31108</if_sid>
     <url type="pcre2">(?i)(\%27|\'|--|union\s+select|select\s+.*\s+from|or\s+1\=1|waitfor\s+delay)</url>
     <description>Web Attack: SQL Injection attempt detected on web application URI</description>
     <mitre>
@@ -22,35 +9,26 @@
     </mitre>
   </rule>
 
-  <!-- Phát hiện ModSecurity WAF chặn thành công (HTTP 403 Forbidden) -->
   <rule id="100101" level="6">
     <if_sid>100100</if_sid>
     <id>403</id>
-    <description>WAF Action: SQL Injection attempt blocked by ModSecurity (HTTP 403)</description>
+    <description>WAF Action: SQL Injection attempt blocked by ModSecurity</description>
     <mitre>
       <id>T1190</id>
     </mitre>
   </rule>
 
-  <!-- Cảnh báo nghiêm trọng: SQL Injection trả về HTTP 200 OK (nguy cơ WAF bị bypass hoặc chưa chặn) -->
   <rule id="100102" level="12">
     <if_sid>100100</if_sid>
     <id>200</id>
-    <description>CRITICAL: SQL Injection payload returned HTTP 200 OK (Possible WAF Bypass / Successful Exploit)</description>
+    <description>CRITICAL: SQL Injection payload returned HTTP 200 OK</description>
     <mitre>
       <id>T1190</id>
     </mitre>
   </rule>
 
-
-  <!-- ===================================================================== -->
-  <!-- CA TRỰC 2: LINUX SSH BRUTE FORCE & CORRELATION                       -->
-  <!-- Nguồn log: Linux auth.log (/var/log/auth.log)                          -->
-  <!-- ===================================================================== -->
-
-  <!-- Phát hiện hơn 5 lần đăng nhập SSH thất bại từ 1 IP trong vòng 60 giây -->
   <rule id="100201" level="10" frequency="5" timeframe="60">
-    <if_matched_sid>5710</if_matched_sid>
+    <if_matched_sid>5710, 5716</if_matched_sid>
     <same_source_ip />
     <description>Brute Force: Multiple SSH authentication failures from single IP</description>
     <mitre>
@@ -58,59 +36,43 @@
     </mitre>
   </rule>
 
-  <!-- Tương quan: Đăng nhập thành công ngay sau chuỗi brute force thất bại (Tài khoản bị xâm phạm) -->
   <rule id="100202" level="13">
     <if_sid>5715</if_sid>
     <if_matched_sid>100201</if_matched_sid>
     <same_source_ip />
-    <description>CRITICAL: Successful SSH login following brute force attack from same IP (Account Compromised)</description>
+    <description>CRITICAL: Successful SSH login following brute force attack from same IP</description>
     <mitre>
       <id>T1110.001</id>
       <id>T1078</id>
     </mitre>
   </rule>
 
-
-  <!-- ===================================================================== -->
-  <!-- CA TRỰC 3: WINDOWS ENDPOINT DETECTION (POWERSHELL & REGISTRY RUN KEY)  -->
-  <!-- Nguồn log: Microsoft-Windows-Sysmon/Operational (Event ID 1 & 13)       -->
-  <!-- ===================================================================== -->
-
-  <!-- Sysmon Event ID 1: PowerShell thực thi kèm tham số mã hóa Base64 (-enc / -encodedcommand) -->
   <rule id="100301" level="10">
     <if_sid>61603</if_sid>
     <field name="win.eventdata.originalFileName" type="pcre2">(?i)powershell\.exe</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)\s+-(e|en|enc|encoded|encodedcommand)\s+</field>
-    <description>Defense Evasion: PowerShell execution with Encoded/Obfuscated Command Line</description>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(\s+-(e|en|enc|encoded|encodedcommand)\s+|-executionpolicy\s+bypass)</field>
+    <description>Defense Evasion: Suspicious PowerShell execution detected</description>
     <mitre>
       <id>T1027</id>
       <id>T1059.001</id>
     </mitre>
   </rule>
 
-  <!-- Sysmon Event ID 13: Cài cắm mã độc tự khởi động qua Registry Run Key (Persistence) -->
   <rule id="100302" level="10">
-    <if_sid>61613</if_sid>
+    <if_sid>61615</if_sid>
     <field name="win.eventdata.targetObject" type="pcre2">(?i)CurrentVersion\\Run</field>
-    <description>Persistence: New entry created or modified in Registry Run Key</description>
+    <description>Persistence: Registry Run Key modification detected</description>
     <mitre>
       <id>T1547.001</id>
     </mitre>
   </rule>
 
-
-  <!-- ===================================================================== -->
-  <!-- CA TRỰC 4: FALSE POSITIVE HANDLING & RULE TUNING (SUPPRESSION)        -->
-  <!-- Nguồn log: Loại trừ công cụ quản trị hợp lệ khỏi Rule 100301           -->
-  <!-- ===================================================================== -->
-
-  <!-- Tinh chỉnh luật: Đặt level="0" để bỏ qua cảnh báo giả khi script quản trị Backup nội bộ chạy -->
   <rule id="100401" level="0">
     <if_sid>100301</if_sid>
     <field name="win.eventdata.user" type="pcre2">(?i)^DOMAIN\\svc_backup$</field>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\svchost\.exe$</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)Backup_Routine\.ps1</field>
-    <description>Tuning/Whitelist: Suppress alert for authorized IT Backup Service account</description>
+    <description>Tuning: Whitelist authorized IT Backup Service account</description>
   </rule>
 
 </group>
-

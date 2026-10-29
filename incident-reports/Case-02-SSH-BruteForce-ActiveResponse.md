@@ -29,16 +29,12 @@ Cơ chế phòng thủ tự động **Wazuh Active Response** (`firewall-drop`) 
 ### 3. BẰNG CHỨNG LOG CHI TIẾT (/var/log/auth.log)
 ```log
 Oct 29 14:20:01 web-server sshd[28412]: Failed password for invalid user admin from 203.0.113.45 port 41234 ssh2
-Oct 29 14:20:05 web-server sshd[28415]: Failed password for invalid user root from 203.0.113.45 port 41238 ssh2
+Oct 29 14:20:05 web-server sshd[28415]: Failed password for root from 203.0.113.45 port 41238 ssh2
 Oct 29 14:20:09 web-server sshd[28418]: Failed password for invalid user oracle from 203.0.113.45 port 41242 ssh2
 Oct 29 14:20:14 web-server sshd[28421]: Failed password for invalid user test from 203.0.113.45 port 41246 ssh2
 Oct 29 14:20:18 web-server sshd[28424]: Failed password for devops from 203.0.113.45 port 41250 ssh2
 Oct 29 14:20:22 web-server sshd[28427]: Failed password for devops from 203.0.113.45 port 41254 ssh2
-
-# Cơ chế Active Response kích hoạt chặn IP:
 Oct 29 14:20:23 web-server ossec-execd[1120]: active-response/bin/firewall-drop.sh add - 203.0.113.45 100201
-
-# Đăng nhập thành công ngay trước khi kết nối bị triệt tiêu:
 Oct 29 14:20:25 web-server sshd[28430]: Accepted password for devops from 203.0.113.45 port 41258 ssh2
 Oct 29 14:20:25 web-server systemd-logind[789]: New session 42 of user devops.
 ```

@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-"""
-Triage IOC Checker - Threat Intel Enrichment Tool for SOC Operations
-Role: Security Operations Center (SOC Tier 1)
-Purpose:
-    Tra cứu nhanh độ uy tín của địa chỉ IP hoặc File Hash (MD5 / SHA256)
-    qua API của AbuseIPDB và VirusTotal trong quá trình Initial Triage.
-
-Usage:
-    python triage_ioc_checker.py -i <IP_ADDRESS>
-    python triage_ioc_checker.py -f <FILE_HASH>
-    python triage_ioc_checker.py
-"""
-
 import os
 import re
 import sys
@@ -20,7 +6,6 @@ import urllib.request
 import urllib.error
 import json
 
-# Dam bao terminal Windows khong bi loi encoding UTF-8
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -30,15 +15,15 @@ if sys.platform == "win32":
 VT_API_KEY = os.getenv("VT_API_KEY", "")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
 
-def is_ip(val: str) -> bool:
+def is_ip(val):
     pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
     return bool(re.match(pattern, val.strip()))
 
-def is_hash(val: str) -> bool:
+def is_hash(val):
     val = val.strip()
     return len(val) in (32, 40, 64) and bool(re.match(r"^[a-fA-F0-9]+$", val))
 
-def check_abuseipdb(ip: str):
+def check_abuseipdb(ip):
     print(f"\n[+] Tra cuu IP tren AbuseIPDB: {ip}")
     if not ABUSEIPDB_API_KEY:
         print("  [!] Khong co ABUSEIPDB_API_KEY. Che do Lab Simulation:")
@@ -62,7 +47,7 @@ def check_abuseipdb(ip: str):
     except Exception as e:
         print(f"  [-] Loi ket noi AbuseIPDB: {e}")
 
-def check_virustotal(ioc: str, ioc_type: str):
+def check_virustotal(ioc, ioc_type):
     print(f"\n[+] Tra cuu {ioc_type.upper()} tren VirusTotal: {ioc}")
     if not VT_API_KEY:
         print("  [!] Khong co VT_API_KEY. Che do Lab Simulation:")
@@ -88,16 +73,16 @@ def check_virustotal(ioc: str, ioc_type: str):
         print(f"  [-] Loi ket noi VirusTotal: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="SOC Tier 1 Triage IOC Reputation Checker")
-    parser.add_argument("-i", "--ip", help="Dia chi IPv4 can kiem tra")
-    parser.add_argument("-f", "--hash", help="Ma Hash (MD5/SHA256) can kiem tra")
+    parser = argparse.ArgumentParser(description="SOC Triage IOC Reputation Checker")
+    parser.add_argument("-i", "--ip", help="Dia chi IPv4")
+    parser.add_argument("-f", "--hash", help="Ma Hash MD5 hoac SHA256")
     args = parser.parse_args()
 
     target = args.ip or args.hash
     if not target:
-        print("="*60)
-        print("       SOC ANALYST TIER 1 - QUICK IOC TRIAGE CHECKER")
-        print("="*60)
+        print("=" * 60)
+        print("       SOC ANALYST - QUICK IOC TRIAGE CHECKER")
+        print("=" * 60)
         target = input("Nhap dia chi IP hoac File Hash can tra cuu: ").strip()
 
     if is_ip(target):

@@ -37,6 +37,7 @@ Mô hình luồng dữ liệu giám sát an ninh mạng đa nền tảng kết n
 ```plaintext
 My-SOC-Lab/
 ├── README.md                              # Tài liệu kiến trúc & hướng dẫn vận hành
+├── PROJECT_PLAN.md                        # Nhật ký triển khai kỹ thuật toàn diện từ con số 0
 ├── deployment/
 │   └── docker-compose.yml                 # Triển khai cụm Wazuh SIEM Single-Node
 ├── configurations/
@@ -49,11 +50,11 @@ My-SOC-Lab/
 │       └── local_rules.xml                # Tập luật phát hiện tùy chỉnh & luật loại trừ (Tuning)
 ├── scripts/
 │   └── triage_ioc_checker.py              # Công cụ dòng lệnh làm giàu dữ liệu qua AbuseIPDB & VirusTotal
-├── sample-logs/                           # Dữ liệu log mẫu chuẩn ngành để kiểm thử SIEM
-│   ├── case1_modsec_sqli.log              # Log Nginx HTTP 403 vs 200 & ModSecurity WAF audit log
-│   ├── case2_ssh_bruteforce.log           # Log Linux auth.log chuỗi SSH Brute Force & chiếm quyền
-│   ├── case3_sysmon_encoded_powershell.json # Log Sysmon Event 1 & 13 lệnh PowerShell mã hóa Base64
-│   └── case4_sysmon_admin_false_positive.json # Log tác vụ sao lưu hợp lệ kiểm tra bộ lọc
+├── sample-logs/                           # Dữ liệu log thô từ 4 kho dataset chuẩn quốc tế
+│   ├── case1_modsec_sqli.log              # Nguồn: coreruleset/coreruleset & splunk/attack_data (T1190)
+│   ├── case2_ssh_bruteforce.log           # Nguồn: logpai/loghub (OpenSSH) & splunk/attack_data (T1110.001)
+│   ├── case3_sysmon_encoded_powershell.json # Nguồn: OTRF/Security-Datasets & sbousseaden/EVTX-ATTACK-SAMPLES
+│   └── case4_sysmon_admin_false_positive.json # Nguồn: Windows 10 Task Scheduler Sysmon EventChannel
 └── incident-reports/                      # Hồ sơ điều tra sự cố chuẩn SOC ITSM
     ├── Case-01-OWASP-SQLi-and-WAF-Triage.md
     ├── Case-02-SSH-BruteForce-ActiveResponse.md
@@ -63,16 +64,16 @@ My-SOC-Lab/
 
 ---
 
-## 🎯 3. Các Kịch bản Giám sát & Điều tra (Use Cases)
+## 🎯 3. Các Kịch bản Giám sát & Nguồn Dữ liệu Chuẩn (Use Cases & Datasets)
 
-Dự án thiết lập 4 kịch bản giám sát trọng tâm với đầy đủ hồ sơ kỹ thuật:
+Dự án thiết lập 4 kịch bản giám sát trọng tâm với nguồn dữ liệu đối chiếu chuẩn ngành:
 
-| Kịch bản | Phạm vi điều tra | Nguồn Log & Công nghệ | Kết luận Triage | Hồ sơ sự cố |
+| Kịch bản | Bề mặt giám sát | Nguồn Dataset Chuẩn Quốc tế | Kết luận Triage | Hồ sơ sự cố |
 | :--- | :--- | :--- | :---: | :--- |
-| **Case 01** | **OWASP Top 10 SQLi & WAF**<br>Đối chiếu request bị chặn (403) và request khai thác thành công (200). | Nginx Access Log, ModSecurity CRS | **True Positive (TP)** | [Case-01-Report](incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md) |
-| **Case 02** | **SSH Brute Force & Compromise**<br>Nhận diện chuỗi dò mật khẩu kèm đăng nhập thành công; xác thực cơ chế chặn tự động Active Response. | Linux `/var/log/auth.log`, Wazuh Active Response | **True Positive (TP)** | [Case-02-Report](incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md) |
-| **Case 03** | **Windows Encoded PowerShell & Persistence**<br>Giải mã Base64 sang UTF-16LE, truy vết hành vi cắm chốt khởi động tại Run Key Registry. | Sysmon Event ID 1 & 13, VirusTotal | **True Positive (TP)** | [Case-03-Report](incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md) |
-| **Case 04** | **Điều tra Cảnh báo Giả & Tinh chỉnh Luật (Tuning)**<br>Xác minh tác vụ quản trị hệ thống hợp lệ, thiết lập luật `level="0"` triệt tiêu Alert Fatigue. | Sysmon Event ID 1, IT Change Ticket #CHG-8921 | **False Positive (FP)** | [Case-04-Report](incident-reports/Case-04-False-Positive-Alert-Tuning.md) |
+| **Case 01** | **OWASP Top 10 SQLi & WAF**<br>Đối chiếu request bị chặn (403) và request thành công (200). | `coreruleset/coreruleset`<br>`splunk/attack_data` (T1190) | **True Positive (TP)** | [Case-01-Report](incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md) |
+| **Case 02** | **SSH Brute Force & Compromise**<br>Bắt chuỗi brute force tài khoản hợp lệ/không hợp lệ; kiểm tra Active Response. | `logpai/loghub` (OpenSSH_2k)<br>`splunk/attack_data` (T1110.001) | **True Positive (TP)** | [Case-02-Report](incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md) |
+| **Case 03** | **Windows Encoded PowerShell & Persistence**<br>Giải mã Base64 sang UTF-16LE, truy vết khóa Run Key Registry. | `OTRF/Security-Datasets` (Mordor)<br>`sbousseaden/EVTX-ATTACK-SAMPLES` | **True Positive (TP)** | [Case-03-Report](incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md) |
+| **Case 04** | **Điều tra Cảnh báo Giả & Tinh chỉnh Luật (Tuning)**<br>Xác minh tác vụ quản trị hệ thống hợp lệ, thiết lập luật `level="0"` triệt tiêu Alert Fatigue. | Windows 10 Task Scheduler Sysmon EventChannel (svchost.exe) | **False Positive (FP)** | [Case-04-Report](incident-reports/Case-04-False-Positive-Alert-Tuning.md) |
 
 ---
 
@@ -86,16 +87,13 @@ Tệp [`scripts/triage_ioc_checker.py`](scripts/triage_ioc_checker.py) là công
 
 **Cú pháp thực thi:**
 ```bash
-# Tra cứu danh tiếng địa chỉ IP
 python scripts/triage_ioc_checker.py -i 203.0.113.45
-
-# Tra cứu mã Hash tệp thực thi
 python scripts/triage_ioc_checker.py -f 44d88612fea8a8f36de82e1278abb02f
 ```
 
 ---
 
-## 🚀 5. Hướng dẫn Vận hành & Kiểm thử (Quickstart)
+## 🚀 5. Hướng dẫn Vận hành & Phương pháp Kiểm thử
 
 ### Bước 1: Khởi động Wazuh SIEM
 Yêu cầu hệ thống cài đặt Docker và Docker Compose:
@@ -105,13 +103,13 @@ docker compose up -d
 ```
 Truy cập giao diện quản trị Wazuh Dashboard: `https://localhost:443` (Tài khoản mặc định: `admin` / Mật khẩu: `SecretPassword123!`).
 
-### Bước 2: Kiểm thử luật phát hiện bằng `wazuh-logtest`
-Wazuh cung cấp tiện ích `wazuh-logtest` cho phép kiểm tra trực tiếp khả năng nhận diện của luật đối với các sự kiện log thô:
-```bash
-# Truy cập vào container Wazuh Manager
-docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
-```
-Sau đó dán nội dung log từ thư mục [`sample-logs/`](sample-logs/) để kiểm tra chuỗi giải mã (Decoder) và mã luật (Rule ID) được kích hoạt.
+### Bước 2: Kiểm thử luật phát hiện
+- **Đối với log văn bản Linux/Web (Case 1 & Case 2):** Sử dụng tiện ích dòng lệnh `wazuh-logtest` có sẵn trong container:
+  ```bash
+  docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
+  ```
+  Dán các dòng log từ `sample-logs/case1_modsec_sqli.log` hoặc `sample-logs/case2_ssh_bruteforce.log` để kiểm tra các giai đoạn Pre-decoding, Decoding và Rule Matching.
+- **Đối với log Windows Sysmon (Case 3 & Case 4):** Do log Sysmon sử dụng cấu trúc `windows_eventchannel` nội bộ của Wazuh Agent với các trường phân nhánh `win.system.eventID` và `win.eventdata.*`, việc kiểm thử được thực hiện qua luồng thu thập EventChannel hoặc kiểm tra qua tệp nhật ký `archives.json` trong container thay vì dán chuỗi JSON phẳng vào `wazuh-logtest`.
 
 ---
 
@@ -126,5 +124,5 @@ Sau đó dán nội dung log từ thư mục [`sample-logs/`](sample-logs/) đ�
 
 2. **Nguyên lý Tinh chỉnh Giảm nhiễu (Rule Tuning Strategy):**
    - Sử dụng thẻ `<if_sid>` kế thừa logic phát hiện từ luật cha.
-   - Định nghĩa điều kiện thu hẹp bằng biểu thức chính quy PCRE2 trên các trường định danh an toàn (`win.eventdata.user`, `win.eventdata.commandLine`).
+   - Định nghĩa điều kiện thu hẹp bằng biểu thức chính quy PCRE2 trên các trường định danh an toàn (`win.eventdata.user`, `win.eventdata.parentImage`, `win.eventdata.commandLine`).
    - Gán `level="0"` để vô hiệu hóa việc tạo cảnh báo cho hành vi đã được kiểm chứng an toàn mà không làm ảnh hưởng đến khả năng phát hiện tấn công thật.
