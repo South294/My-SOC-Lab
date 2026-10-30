@@ -54,3 +54,4 @@ services:
 networks:
   soc-lab-net:
     driver: bridge
+

