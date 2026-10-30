@@ -16,7 +16,9 @@ services:
       - INDEXER_PASSWORD=SecretPassword123!
     volumes:
       - ./wazuh_data/wazuh_logs:/var/ossec/logs
-      - ../configurations/siem-rules/local_rules.xml:/var/ossec/etc/rules/local_rules.xml:ro
+      - ./shared-logs:/var/log/datasets
+      - ./rules/local_rules.xml:/var/ossec/etc/rules/local_rules.xml:ro
+      - ./config/wazuh_manager.conf:/wazuh-config-mount/etc/ossec.conf
     networks:
       - soc-lab-net
 
@@ -28,6 +30,7 @@ services:
       - "9200:9200"
     environment:
       - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=SecretPassword123!"
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
     volumes:
       - ./wazuh_data/wazuh_indexer_data:/var/lib/wazuh-indexer
     networks:

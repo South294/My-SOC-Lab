@@ -53,7 +53,7 @@ Sau khi tiếp nhận cảnh báo, Analyst L1 tiến hành điều tra:
 
 ### 4. GIẢI PHÁP TINH CHỈNH LUẬT (RULE TUNING IMPLEMENTATION)
 
-Bổ sung luật loại trừ (Suppression Rule) vào tệp `configurations/siem-rules/local_rules.xml`:
+Bổ sung luật loại trừ (Suppression Rule) vào tệp `rules/local_rules.xml`:
 
 ```xml
 <rule id="100401" level="0">

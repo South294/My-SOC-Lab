@@ -1,61 +1,48 @@
 # 🛡️ Security Operations Center (SOC Tier 1) Detection & Triage Lab
 
-> Hệ thống lab giám sát an ninh mạng và phản ứng sự cố tập trung vào các năng lực vận hành thực tế của SOC Tier 1: **Giám sát cảnh báo (Alert Monitoring & Triage)**, **Phân tích log tấn công (Detection Engineering)**, **Điều tra sự cố & Lập biên bản (Incident Investigation & Reporting)**, **Tự động hóa tra cứu chỉ số nguy hại (Threat Intelligence Scripting)** và **Tối ưu hóa luật phát hiện (SIEM Rule Tuning)**.
+> Hệ thống lab giám sát an ninh mạng và phản ứng sự cố vận hành trên nền tảng **Docker Desktop (WSL2 Backend)** kết hợp **Wazuh Single-Node SIEM**. Hệ thống tối ưu hóa tài nguyên (tiêu thụ ~2GB - 2.5GB RAM), nạp trực tiếp dataset tấn công thực tế từ môi trường WSL2 qua thư mục mount `shared-logs/`, kiểm thử luật phát hiện theo thời gian thực và xử lý cảnh báo chuẩn SOC Tier 1.
 
 ---
 
-## 📌 1. Kiến trúc Hệ thống Giám sát (Lab Architecture)
-
-Mô hình luồng dữ liệu giám sát an ninh mạng đa nền tảng kết nối về SIEM trung tâm:
+## 📌 1. Kiến trúc Lab Tối ưu (WSL2 & Docker SIEM)
 
 ```
-                  ┌────────────────────────────────────────────────────────┐
-                  │                 HỆ THỐNG GIÁM SÁT TRUNG TÂM             │
-                  │              Wazuh SIEM (Manager + Dashboard)          │
-                  │   - Correlate Alerts       - Custom Detection Rules    │
-                  │   - Active Response        - Rule Tuning Engine        │
-                  └───────────────────────────▲────────────────────────────┘
-                                              │
-                      ┌───────────────────────┴───────────────────────┐
-                      │ Log Streams (TCP/1514)                        │ Log Streams (TCP/1514)
-                      │                                               │
-    ┌─────────────────┴───────────────────┐       ┌───────────────────┴─────────────────┐
-    │     MỤC TIÊU WEB & BIÊN (LINUX)     │       │     MÁY TRẠM ĐÍCH (WINDOWS 10)      │
-    │  Ubuntu Server + Nginx Reverse Proxy│       │  Windows Workstation (Sysmon)       │
-    │  ─────────────────────────────────  │       │  ─────────────────────────────────  │
-    │  - Nginx Access/Error Logs          │       │  - Windows Security Logs (4624/4625)│
-    │  - ModSecurity WAF (OWASP CRS)      │       │  - Sysmon Event ID 1 (Process)      │
-    │  - Suricata NIDS (eve.json)         │       │  - Sysmon Event ID 13 (Registry)    │
-    │  - OS Auth Log (SSH Failed/Success) │       │  - Sysmon Event ID 11 (File Create) │
-    └─────────────────────────────────────┘       └─────────────────────────────────────┘
+[ Windows 10/11 Host ]
+ ├── Trình duyệt Web (https://localhost) ◄── Xem Alert, Lọc KQL & Điều tra
+ └── Môi trường Ubuntu WSL2 (~/My-SOC-Lab)
+      ├── Giới hạn RAM (.wslconfig)      ──► Khống chế trần 4GB RAM cho toàn bộ WSL2
+      ├── Datasets Tấn công Thật         ──► datasets/ (OpenSSH, OWASP, Sysmon)
+      ├── Script Bơm Log (feed_logs.sh)  ──► shared-logs/ ──(Mount)──► Container: wazuh.manager (/var/log/datasets/)
+      └── Tập Luật Phát hiện & Tuning    ──► rules/local_rules.xml ──► (/var/ossec/etc/rules/)
 ```
 
 ---
 
-## 📂 2. Cấu trúc Dự án (Repository Structure)
+## 📂 2. Cấu trúc Thư mục Dự án
 
 ```plaintext
 My-SOC-Lab/
+├── .wslconfig                             # Tệp cấu hình giới hạn RAM/CPU cho WSL2
 ├── README.md                              # Tài liệu kiến trúc & hướng dẫn vận hành
-├── PROJECT_PLAN.md                        # Nhật ký triển khai kỹ thuật toàn diện từ con số 0
-├── deployment/
-│   └── docker-compose.yml                 # Triển khai cụm Wazuh SIEM Single-Node
-├── configurations/
-│   ├── windows-agent/
-│   │   ├── ossec.conf                     # Cấu hình Wazuh Agent thu thập Sysmon & Windows Events
-│   │   └── sysmonconfig.xml               # Bộ lọc Sysmon giám sát Process, Network, Registry
-│   ├── linux-web-agent/
-│   │   └── ossec.conf                     # Cấu hình Agent đọc auth.log, nginx, ModSecurity & Suricata
-│   └── siem-rules/
-│       └── local_rules.xml                # Tập luật phát hiện tùy chỉnh & luật loại trừ (Tuning)
+├── PROJECT_PLAN.md                        # Kế hoạch chi tiết và tiến trình xây dựng hệ thống
+├── docker-compose.yml                     # Cụm Wazuh Single-Node (Indexer RAM 512m, mount logs & rules)
+├── config/
+│   └── wazuh_manager.conf                 # Cấu hình <localfile> đọc log từ /var/log/datasets/
+├── rules/
+│   └── local_rules.xml                    # Bộ luật phát hiện (Web SQLi, SSH Brute Force, Sysmon) & Tuning
+├── shared-logs/                           # Điểm mount trực tiếp giữa WSL2 và Wazuh Manager
+│   ├── web_access.log
+│   ├── linux_auth.log
+│   └── windows_sysmon.json
+├── datasets/                              # Dữ liệu tấn công thô chuẩn quốc tế
+│   ├── owasp_sqli.log                     # coreruleset & splunk/attack_data (T1190)
+│   ├── openssh_bruteforce.log             # logpai/loghub & splunk/attack_data (T1110.001)
+│   ├── windows_sysmon_execution.json      # OTRF/Security-Datasets (T1059.001)
+│   └── windows_sysmon_benign.json         # Log quản trị hợp lệ dùng kiểm thử False Positive
 ├── scripts/
-│   └── triage_ioc_checker.py              # Công cụ dòng lệnh làm giàu dữ liệu qua AbuseIPDB & VirusTotal
-├── sample-logs/                           # Dữ liệu log thô từ 4 kho dataset chuẩn quốc tế
-│   ├── case1_modsec_sqli.log              # Nguồn: coreruleset/coreruleset & splunk/attack_data (T1190)
-│   ├── case2_ssh_bruteforce.log           # Nguồn: logpai/loghub (OpenSSH) & splunk/attack_data (T1110.001)
-│   ├── case3_sysmon_encoded_powershell.json # Nguồn: OTRF/Security-Datasets & sbousseaden/EVTX-ATTACK-SAMPLES
-│   └── case4_sysmon_admin_false_positive.json # Nguồn: Windows 10 Task Scheduler Sysmon EventChannel
-└── incident-reports/                      # Hồ sơ điều tra sự cố chuẩn SOC ITSM
+│   ├── feed_logs.sh                       # Script bash bơm log từ datasets vào shared-logs
+│   └── triage_ioc_checker.py              # Script tra cứu IP/Hash qua AbuseIPDB và VirusTotal
+└── incident-reports/                      # 4 hồ sơ điều tra sự cố chuẩn SOC ITSM
     ├── Case-01-OWASP-SQLi-and-WAF-Triage.md
     ├── Case-02-SSH-BruteForce-ActiveResponse.md
     ├── Case-03-Windows-Encoded-PowerShell-Persistence.md
@@ -64,65 +51,74 @@ My-SOC-Lab/
 
 ---
 
-## 🎯 3. Các Kịch bản Giám sát & Nguồn Dữ liệu Chuẩn (Use Cases & Datasets)
+## ⚙️ 3. Thiết lập Hạ tầng & Tối ưu Tài nguyên
 
-Dự án thiết lập 4 kịch bản giám sát trọng tâm với nguồn dữ liệu đối chiếu chuẩn ngành:
-
-| Kịch bản | Bề mặt giám sát | Nguồn Dataset Chuẩn Quốc tế | Kết luận Triage | Hồ sơ sự cố |
-| :--- | :--- | :--- | :---: | :--- |
-| **Case 01** | **OWASP Top 10 SQLi & WAF**<br>Đối chiếu request bị chặn (403) và request thành công (200). | `coreruleset/coreruleset`<br>`splunk/attack_data` (T1190) | **True Positive (TP)** | [Case-01-Report](incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md) |
-| **Case 02** | **SSH Brute Force & Compromise**<br>Bắt chuỗi brute force tài khoản hợp lệ/không hợp lệ; kiểm tra Active Response. | `logpai/loghub` (OpenSSH_2k)<br>`splunk/attack_data` (T1110.001) | **True Positive (TP)** | [Case-02-Report](incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md) |
-| **Case 03** | **Windows Encoded PowerShell & Persistence**<br>Giải mã Base64 sang UTF-16LE, truy vết khóa Run Key Registry. | `OTRF/Security-Datasets` (Mordor)<br>`sbousseaden/EVTX-ATTACK-SAMPLES` | **True Positive (TP)** | [Case-03-Report](incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md) |
-| **Case 04** | **Điều tra Cảnh báo Giả & Tinh chỉnh Luật (Tuning)**<br>Xác minh tác vụ quản trị hệ thống hợp lệ, thiết lập luật `level="0"` triệt tiêu Alert Fatigue. | Windows 10 Task Scheduler Sysmon EventChannel (svchost.exe) | **False Positive (FP)** | [Case-04-Report](incident-reports/Case-04-False-Positive-Alert-Tuning.md) |
-
----
-
-## 🛠️ 4. Công cụ Hỗ trợ Điều tra (Threat Intelligence Scripting)
-
-Tệp [`scripts/triage_ioc_checker.py`](scripts/triage_ioc_checker.py) là công cụ dòng lệnh độc lập hỗ trợ quá trình làm giàu dữ liệu cảnh báo (Enrichment):
-- Tự động nhận diện định dạng **IPv4** hoặc **File Hash (MD5/SHA256)**.
-- Kết nối API v2 của **AbuseIPDB** để trích xuất điểm uy tín (Abuse Confidence Score), ISP và quốc gia.
-- Kết nối API v3 của **VirusTotal** để kiểm tra tỷ lệ nhận diện độc hại từ các engine an ninh mạng.
-- Tự động fallback về chế độ kiểm thử nội bộ khi hệ thống hoạt động trong mạng cô lập (Air-gapped) hoặc chưa nạp API key.
-
-**Cú pháp thực thi:**
-```bash
-python scripts/triage_ioc_checker.py -i 203.0.113.45
-python scripts/triage_ioc_checker.py -f 44d88612fea8a8f36de82e1278abb02f
+### Bước 1: Khống chế RAM trên Windows
+Sao chép tệp `.wslconfig` vào thư mục người dùng Windows (`%UserProfile%\.wslconfig`):
+```ini
+[wsl2]
+memory=4GB
+processors=2
+swap=2GB
+```
+Khởi động lại WSL trong PowerShell:
+```cmd
+wsl --shutdown
 ```
 
----
-
-## 🚀 5. Hướng dẫn Vận hành & Phương pháp Kiểm thử
-
-### Bước 1: Khởi động Wazuh SIEM
-Yêu cầu hệ thống cài đặt Docker và Docker Compose:
+### Bước 2: Khởi động Wazuh SIEM
+Tại thư mục dự án trên WSL hoặc terminal Windows:
 ```bash
-cd deployment/
 docker compose up -d
 ```
-Truy cập giao diện quản trị Wazuh Dashboard: `https://localhost:443` (Tài khoản mặc định: `admin` / Mật khẩu: `SecretPassword123!`).
-
-### Bước 2: Kiểm thử luật phát hiện
-- **Đối với log văn bản Linux/Web (Case 1 & Case 2):** Sử dụng tiện ích dòng lệnh `wazuh-logtest` có sẵn trong container:
-  ```bash
-  docker exec -it deployment-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
-  ```
-  Dán các dòng log từ `sample-logs/case1_modsec_sqli.log` hoặc `sample-logs/case2_ssh_bruteforce.log` để kiểm tra các giai đoạn Pre-decoding, Decoding và Rule Matching.
-- **Đối với log Windows Sysmon (Case 3 & Case 4):** Do log Sysmon sử dụng cấu trúc `windows_eventchannel` nội bộ của Wazuh Agent với các trường phân nhánh `win.system.eventID` và `win.eventdata.*`, việc kiểm thử được thực hiện qua luồng thu thập EventChannel hoặc kiểm tra qua tệp nhật ký `archives.json` trong container thay vì dán chuỗi JSON phẳng vào `wazuh-logtest`.
+Mở trình duyệt truy cập: `https://localhost` (Tài khoản mặc định: `admin` / Mật khẩu: `SecretPassword123!`).
 
 ---
 
-## 💡 6. Chu trình Vận hành Chuẩn của SOC Tier 1 (SOC Operations Standard)
+## 🎯 4. Bơm Dữ liệu Tấn công & Bắt Cảnh báo (Live Testing)
 
-1. **Quy trình Initial Triage 5 bước:**
-   - **Bước 1 (Ingestion & Verification):** Tiếp nhận cảnh báo, phân tích log JSON thô, trích xuất Rule ID và mức độ nghiêm trọng.
-   - **Bước 2 (Field Extraction):** Bóc tách các trường dữ liệu quan trọng (`srcip`, `user`, `CommandLine`, `ParentImage`, `targetObject`).
-   - **Bước 3 (Threat Enrichment):** Kiểm tra danh tiếng IOC trên AbuseIPDB / VirusTotal; giải mã các dòng lệnh obfuscated (Base64 UTF-16LE).
-   - **Bước 4 (Classification):** Đối chiếu với quy trình vận hành tiêu chuẩn (SOP) và lịch sử phê duyệt thay đổi (Change Tickets) để đưa ra kết luận True Positive (TP) hoặc False Positive (FP).
-   - **Bước 5 (Escalation & Tuning):** Khởi tạo ticket bàn giao kèm phương án xử lý ngắn hạn (Containment) lên Tier 2 nếu là TP; thiết lập luật loại trừ nếu là FP.
+Dùng script `scripts/feed_logs.sh` để đẩy log từ `datasets/` vào `shared-logs/` với độ trễ (delay) thực tế:
 
-2. **Nguyên lý Tinh chỉnh Giảm nhiễu (Rule Tuning Strategy):**
-   - Sử dụng thẻ `<if_sid>` kế thừa logic phát hiện từ luật cha.
-   - Định nghĩa điều kiện thu hẹp bằng biểu thức chính quy PCRE2 trên các trường định danh an toàn (`win.eventdata.user`, `win.eventdata.parentImage`, `win.eventdata.commandLine`).
-   - Gán `level="0"` để vô hiệu hóa việc tạo cảnh báo cho hành vi đã được kiểm chứng an toàn mà không làm ảnh hưởng đến khả năng phát hiện tấn công thật.
+```bash
+# 1. Bơm tấn công Web SQL Injection (ModSecurity WAF & Nginx)
+bash scripts/feed_logs.sh web
+
+# 2. Bơm tấn công SSH Brute Force (kích hoạt rule frequency 5 lần / 60 giây)
+bash scripts/feed_logs.sh ssh
+
+# 3. Bơm lệnh PowerShell mã hóa Base64 & Sysmon Event ID 1
+bash scripts/feed_logs.sh sysmon
+
+# 4. Bơm tác vụ quản trị hợp lệ để kiểm thử bộ lọc False Positive
+bash scripts/feed_logs.sh benign
+```
+
+---
+
+## 🔍 5. Lọc Cảnh báo trên Wazuh Dashboard & Tinh chỉnh Luật
+
+### Lọc sự kiện trên giao diện (KQL Filters):
+- Lọc theo nhóm luật custom: `rule.groups: "custom_soc_lab"`
+- Lọc mức cảnh báo cao: `rule.level >= 10`
+- Lọc theo kỹ thuật MITRE: `rule.mitre.id: "T1190"` hoặc `rule.mitre.id: "T1110.001"`
+
+### Kiểm tra nhanh cấu trúc log bằng `wazuh-logtest`:
+```bash
+head -n 1 datasets/openssh_bruteforce.log | docker exec -i my-soc-lab-main-wazuh.manager-1 /var/ossec/bin/wazuh-logtest
+```
+
+### Áp dụng luật mới sau khi sửa `rules/local_rules.xml`:
+```bash
+docker exec my-soc-lab-main-wazuh.manager-1 /var/ossec/bin/wazuh-control restart
+```
+
+---
+
+## 📊 6. Danh mục Kịch bản Điều tra (Use Cases)
+
+| Kịch bản | Bề mặt giám sát | Nguồn Dataset | Phân loại | Báo cáo chi tiết |
+| :--- | :--- | :--- | :---: | :--- |
+| **Case 01** | Web SQLi & WAF Action | `coreruleset` & `splunk/attack_data` | True Positive | [Case-01-Report](incident-reports/Case-01-OWASP-SQLi-and-WAF-Triage.md) |
+| **Case 02** | SSH Brute Force & Compromise | `logpai/loghub` & `splunk/attack_data` | True Positive | [Case-02-Report](incident-reports/Case-02-SSH-BruteForce-ActiveResponse.md) |
+| **Case 03** | Encoded PowerShell & Persistence | `OTRF/Security-Datasets` & Sysmon | True Positive | [Case-03-Report](incident-reports/Case-03-Windows-Encoded-PowerShell-Persistence.md) |
+| **Case 04** | False Positive & Rule Tuning | Windows 10 Task Scheduler Sysmon | False Positive | [Case-04-Report](incident-reports/Case-04-False-Positive-Alert-Tuning.md) |
