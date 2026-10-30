@@ -29,9 +29,8 @@
 
 ```plaintext
 My-SOC-Lab/
-├── .wslconfig                             # Giới hạn 4GB RAM cho WSL2 trên Windows
+├── .wslconfig.example                     # Mẫu cấu hình giới hạn 4GB RAM cho WSL2
 ├── README.md                              # Hướng dẫn dựng lab, cài agent, bơm payload và viết rule
-├── PROJECT_PLAN.md                        # Quy trình vận hành và kịch bản tấn công thực tế
 ├── docker-compose.yml                     # Cụm Wazuh SIEM Single-Node tối ưu RAM
 ├── config/
 │   └── wazuh_manager.conf                 # Cấu hình nguồn log và kênh thông báo (Slack/Webhook)
@@ -41,14 +40,19 @@ My-SOC-Lab/
 │   ├── web_access.log
 │   ├── linux_auth.log
 │   └── windows_sysmon.json
-├── datasets/                              # Dữ liệu payload và log tấn công mẫu để kiểm thử
+├── datasets/                              # Dữ liệu payload và log tấn công chuẩn quốc tế
 │   ├── owasp_sqli.log
 │   ├── openssh_bruteforce.log
 │   ├── windows_sysmon_execution.json
 │   └── windows_sysmon_benign.json
-└── scripts/
-    ├── feed_logs.sh                       # Script bash bơm log mẫu từ WSL vào shared-logs
-    └── triage_ioc_checker.py              # Script Python tra cứu IP và Hash độc hại
+├── scripts/
+│   ├── feed_logs.sh                       # Script bash bơm log từ datasets vào shared-logs
+│   └── triage_ioc_checker.py              # Script Python tra cứu IP và Hash độc hại
+└── incident-reports/                      # Hồ sơ điều tra sự cố chuẩn SOC Tier 1
+    ├── Case-01-OWASP-SQLi-and-WAF-Triage.md
+    ├── Case-02-SSH-BruteForce-ActiveResponse.md
+    ├── Case-03-Windows-Encoded-PowerShell-Persistence.md
+    └── Case-04-False-Positive-Alert-Tuning.md
 ```
 
 ---
@@ -56,7 +60,7 @@ My-SOC-Lab/
 ## 🚀 3. Hướng dẫn Dựng Lab từ Đầu
 
 ### Bước 1: Khống chế RAM cho WSL2
-Copy tệp `.wslconfig` vào thư mục người dùng Windows (`%UserProfile%\.wslconfig`):
+Copy tệp `.wslconfig.example` thành `%UserProfile%\.wslconfig` trên máy Windows:
 ```ini
 [wsl2]
 memory=4GB

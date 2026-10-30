@@ -1,17 +1,3 @@
-198.51.100.50 - - [29/Oct/2026:14:15:20 +0700] "GET /vulnerabilities/sqli/?id=1%27+UNION+SELECT+null%2Cuser%2Cpassword+FROM+users--+-&Submit=Submit HTTP/1.1" 403 548 "http://192.168.1.100/vulnerabilities/sqli/" "sqlmap/1.7#stable"
-198.51.100.50 - - [29/Oct/2026:14:10:02 +0700] "GET /vulnerabilities/sqli/?id=1%27+OR+%271%27%3D%271&Submit=Submit HTTP/1.1" 200 4821 "http://192.168.1.100/vulnerabilities/sqli/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
---a1b2c3d4-A--
-[29/Oct/2026:14:15:20 +0700] 1729827320.123456 198.51.100.50 49152 192.168.1.100 80
---a1b2c3d4-B--
-GET /vulnerabilities/sqli/?id=1%27+UNION+SELECT+null%2Cuser%2Cpassword+FROM+users--+-&Submit=Submit HTTP/1.1
-Host: 192.168.1.100
-User-Agent: sqlmap/1.7#stable
-Accept: */*
-Referer: http://192.168.1.100/vulnerabilities/sqli/
-
---a1b2c3d4-H--
-Message: Warning. Pattern match "(?i:(?:union\\s+select))" at ARGS:id. [file "/etc/modsecurity/coreruleset/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"] [line "45"] [id "942100"] [msg "SQL Injection Attack Detected via libinjection"] [data "Matched Data: union select found within ARGS:id: 1' UNION SELECT null,user,password FROM users-- -"] [severity "CRITICAL"] [tag "application-multi"] [tag "language-multi"] [tag "platform-multi"] [tag "attack-sqli"] [tag "OWASP_CRS"]
-Message: Access denied with code 403 (phase 2). Operator GE matched 5 at TX:anomaly_score. [file "/etc/modsecurity/coreruleset/rules/REQUEST-949-BLOCKING-EVALUATION.conf"] [line "80"] [id "949110"] [msg "Inbound Anomaly Score Exceeded"]
-Action: Intercepted (status 403)
-
---a1b2c3d4-Z--
+185.220.101.5 - - [30/Oct/2026:14:10:02 +0700] "GET /vulnerabilities/sqli/?id=1%27+OR+%271%27%3D%271&Submit=Submit HTTP/1.1" 200 4821 "http://192.168.1.100/vulnerabilities/sqli/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+185.220.101.5 - - [30/Oct/2026:14:15:20 +0700] "GET /vulnerabilities/sqli/?id=1%27+UNION+SELECT+null%2Cuser%2Cpassword+FROM+users--+-&Submit=Submit HTTP/1.1" 403 548 "http://192.168.1.100/vulnerabilities/sqli/" "sqlmap/1.7#stable"
+185.220.101.5 - - [30/Oct/2026:14:15:22 +0700] "GET /vulnerabilities/sqli/?id=1%27+AND+1%3D1--+-&Submit=Submit HTTP/1.1" 403 548 "http://192.168.1.100/vulnerabilities/sqli/" "sqlmap/1.7#stable"

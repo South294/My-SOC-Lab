@@ -1,0 +1,7 @@
+config/wazuh_indexer_ssl_certs/
+shared-logs/*.log
+shared-logs/*.json
+!shared-logs/.gitkeep
+PROJECT_PLAN.md
+.env
+
