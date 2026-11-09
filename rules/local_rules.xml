@@ -1,0 +1,74 @@
+<group name="local,custom_soc_lab,">
+
+  <rule id="100100" level="13">
+    <if_sid>5402</if_sid>
+    <regex type="pcre2">nsenter\s+.*--target\s+1</regex>
+    <description>CRITICAL: Docker Container Escape attempt via nsenter to host namespace</description>
+    <mitre><id>T1611</id></mitre>
+  </rule>
+
+  <rule id="100200" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="EventID">^1$|^4662$|^4769$</field>
+    <description>Windows Telemetry: Sysmon &amp; Active Directory Security Event ingested</description>
+  </rule>
+
+  <rule id="100201" level="12">
+    <if_sid>100200</if_sid>
+    <field name="EventID">^1$</field>
+    <field name="Image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="CommandLine" type="pcre2">(?i)(-w(indowstyle)?\s+hidden|-e(xecutionpolicy)?\s+bypass|-enc|AmsiUtils|amsiInitFailed)</field>
+    <description>Defense Evasion: Suspicious PowerShell execution with evasion flags or AMSI bypass</description>
+    <mitre><id>T1562.001</id><id>T1059.001</id></mitre>
+  </rule>
+
+  <rule id="100202" level="0">
+    <if_sid>100201</if_sid>
+    <field name="User" type="pcre2">(?i)^NT AUTHORITY\\SYSTEM$</field>
+    <field name="ParentImage" type="pcre2">(?i)\\svchost\.exe$</field>
+    <field name="CommandLine" type="pcre2">(?i)HealthCheck_Maintenance\.ps1"?$</field>
+    <description>Tuning: Whitelist scheduled Windows maintenance script</description>
+  </rule>
+
+  <rule id="100301" level="10">
+    <if_sid>100200</if_sid>
+    <field name="EventID">^4769$</field>
+    <field name="TicketEncryptionType">^0x17$</field>
+    <field name="ServiceName" type="pcre2">^(?!krbtgt)(?!.*\$).*$</field>
+    <description>Credential Access: Kerberoasting TGS request using legacy RC4 encryption</description>
+    <mitre><id>T1558.003</id></mitre>
+  </rule>
+
+  <rule id="100302" level="13">
+    <if_sid>100200</if_sid>
+    <field name="EventID">^4662$</field>
+    <field name="Properties" type="pcre2">(?i)1131f6aa-9c07-11d1-f79f-00c04fc2dcd2</field>
+    <field name="SubjectUserName" type="pcre2">^(?!.*\$).*$</field>
+    <description>CRITICAL: Potential DCSync attack detected via non-DC directory replication</description>
+    <mitre><id>T1003.006</id></mitre>
+  </rule>
+
+  <rule id="100401" level="11">
+    <if_sid>31100, 31101, 31103, 31106, 31108</if_sid>
+    <url type="pcre2">(?i)eyJ(hbGciOiJub25l|0eXAiOiJKV1QiLCJhbGciOiJub25l)</url>
+    <description>Authentication Bypass: JWT token with algorithm none detected in query string</description>
+    <mitre><id>T1550.001</id></mitre>
+  </rule>
+
+  <rule id="100402" level="6">
+    <if_sid>31100, 31101, 31103, 31106, 31108</if_sid>
+    <url type="pcre2">(?i)(\%27|\'|--|union\s+select|select\s+.*\s+from|or\s+1\=1)</url>
+    <id>^403$</id>
+    <description>WAF Action: SQL Injection probe blocked by web server (HTTP 403)</description>
+    <mitre><id>T1190</id></mitre>
+  </rule>
+
+  <rule id="100403" level="12">
+    <if_sid>31100, 31101, 31103, 31106, 31108</if_sid>
+    <url type="pcre2">(?i)(\%27|\'|--|union\s+select|select\s+.*\s+from|or\s+1\=1)</url>
+    <id>^200$</id>
+    <description>CRITICAL: SQL Injection returned HTTP 200 OK - potential data exfiltration</description>
+    <mitre><id>T1190</id></mitre>
+  </rule>
+
+</group>
