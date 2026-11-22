@@ -1,0 +1,5 @@
+Nov  9 09:14:22 DESKTOP-O7NQ6VH sshd[1420]: Accepted publickey for nam2945 from 172.24.16.1 port 53812 ssh2: RSA SHA256:4bX9kLp2mN8qR5vT1wY7zC3dF6gH0jK9lM2nP4qR6sT
+Nov  9 09:14:22 DESKTOP-O7NQ6VH systemd-logind[412]: New session 4 of user nam2945.
+Nov  9 09:15:04 DESKTOP-O7NQ6VH sudo:   nam2945 : TTY=pts/0 ; PWD=/home/nam2945/My-SOC-Lab ; USER=root ; COMMAND=/usr/bin/docker ps --format table
+Nov  9 09:15:19 DESKTOP-O7NQ6VH sudo:   nam2945 : TTY=pts/0 ; PWD=/home/nam2945/My-SOC-Lab ; USER=root ; COMMAND=/usr/bin/docker inspect wazuh.manager
+Nov  9 09:16:02 DESKTOP-O7NQ6VH sudo:   nam2945 : TTY=pts/0 ; PWD=/home/nam2945/My-SOC-Lab ; USER=root ; COMMAND=/usr/bin/docker run --rm --privileged --pid=host alpine nsenter --target 1 --mount --uts --ipc --net --pid -- /bin/sh
